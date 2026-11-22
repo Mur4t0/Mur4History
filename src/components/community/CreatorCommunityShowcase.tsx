@@ -9,6 +9,7 @@ import {
   Globe,
   Sparkles,
   Users,
+  Zap,
 } from "lucide-react";
 import { useLocale } from "@/components/LanguageProvider";
 import type { CommunityShowcaseData } from "@/lib/community";
@@ -261,7 +262,8 @@ export function CreatorCommunityShowcase({
                     GitHub
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/35 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-200">
-                    ⚡ {isEn ? "Creator" : "Geliştirici"}
+                    <Zap className="h-3 w-3 text-amber-300" />
+                    {isEn ? "Creator" : "Geliştirici"}
                   </span>
                 </div>
                 <div className="mt-1 flex flex-wrap items-baseline gap-2">
