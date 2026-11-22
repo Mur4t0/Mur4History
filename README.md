@@ -139,15 +139,7 @@ npm run setup
 npm run dev
 ```
 
-> **Windows Kullanıcıları İçin Tek Tıkla Başlatma:** Depo içindeki `Mur4History-Play.bat` dosyasına çift tıklayarak kurulum + derleme + `localhost:3000` başlatma adımlarını otomatik çalıştırabilir, `Mur4History-Stop.bat` ile durdurabilirsiniz.
-
-> [!IMPORTANT]
-> **ÖNEMLİ — Başlat / Durdur `.bat` Dosyalarını Kendi Bilgisayarınıza Göre Düzenleyin:**
-> Depoyu klonladıktan sonra doğrudan çift tıklamadan önce `Mur4History-Play.bat` ve `Mur4History-Stop.bat` dosyalarını kendi bilgisayar ortamınıza ve klasör düzeninize göre gözden geçirip uyarlamanız gerekir:
-> 1. **Klasör Adı & Süreç Filtresi (`Mur4History-Stop.bat`)**: Durdurma betiğindeki `powershell` komutu varsayılan olarak komut satırında `Mur4History` geçen `node.exe` Next.js süreçlerini kapatır (`CommandLine -match 'Mur4History|paxhistoryMur4t'`). Repoyu farklı bir klasör adıyla (örneğin `C:\Oyunlar\BenimTarihOyunum`) klonladıysanız bu ismi kendi klasör adınızla değiştirin.
-> 2. **Port Numarası (`Mur4History-Play.bat`)**: Varsayılan olarak `--port 3000` ve `http://127.0.0.1:3000` / `http://localhost:3000` adresleri tanımlıdır. Bilgisayarınızda `3000` portu başka bir uygulama tarafından kullanılıyorsa `.bat` dosyalarındaki portları, `.env` dosyanızı ve MCP URL ayarlarınızı kendi portunuza göre güncelleyin.
-> 3. **Çalışma Dizini & Node.js Yolu (`PATH`)**: `Mur4History-Play.bat` bulunduğu klasörde (`%~dp0`) çalışır ve `where node` ile sistem `PATH`'indeki Node.js 20+ kurulumunu arar. Node.js özel bir klasördeyse veya `.bat` dosyalarını Masaüstü gibi başka bir konuma taşıyacaksanız dizin ve `node` yollarını kendi sisteminize göre ayarlayın.
-> 4. **Ortam Dosyası (`.env`)**: İlk çalıştırmadan önce kök klasörde `.env.example` dosyasını kopyalayarak kendi `.env` dosyanızı (`copy .env.example .env`) oluşturmayı unutmayın.
+> **Windows Kullanıcıları İçin Tek Tıkla Başlatma:** Bilgisayarınızda Node.js 20+ kurulu olması yeterlidir. Repoyu hangi klasöre indirirseniz indirin `Mur4History-Play.bat` dosyasına çift tıklamanız yeterlidir; bulunduğu klasörde eksikse `.env`, `node_modules` (`npm install`), Prisma SQLite veritabanı (`dev.db`) ve Next.js derlemesini otomatik olarak kurup `http://localhost:3000` adresinde oyunu açar. Sunucuyu kapatmak için `Mur4History-Stop.bat` dosyasını çalıştırabilirsiniz.
 
 ### 2. GitHub Packages (Docker / GHCR) ile Çalıştırma
 

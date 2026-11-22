@@ -744,7 +744,7 @@
     .warning-banner svg {
       width: 20px;
       height: 20px;
-      color: var(--amber);
+      color: var(--emerald);
       flex-shrink: 0;
       margin-top: 2px;
     }
@@ -1303,7 +1303,7 @@
           <div class="tut-panel active" id="panel-step-1">
             <div class="sub-pill-row" id="launch-mode-pills"></div>
             <div id="launch-mode-content"></div>
-            <div class="warning-banner" id="bat-warning-box"></div>
+            <div class="warning-banner" id="bat-warning-box" style="border-color:rgba(52,211,153,0.38);background:rgba(16,185,129,0.09);color:#d1fae5;"></div>
           </div>
 
           <!-- STEP 2: IDE & MCP TRANSPORT CONFIG GENERATOR -->
@@ -1314,7 +1314,7 @@
                 id="project-path-input"
                 class="path-input"
                 type="text"
-                value="C:/Users/Test/Desktop/Mur4History"
+                value="C:/Mur4History"
                 oninput="updateProjectPath(this.value)"
               />
             </div>
@@ -1573,7 +1573,7 @@
     let activeIde = "antigravity"; // 'antigravity' | 'cursor' | 'claude' | 'windsurf'
     let activeTransport = "stdio"; // 'stdio' | 'http'
     let activeEraFilter = "all"; // 'all' | 'modern' | 'wars' | 'empires'
-    let customProjectPath = "C:/Users/Test/Desktop/Mur4History";
+    let customProjectPath = "C:/Mur4History";
 
     const SCENARIOS = [
       { id: "2026", year: "2026", cat: "modern", img: "./assets/2026.jpg", trTitle: "2026: Modern Jeopolitik", enTitle: "2026: Modern Geopolitics", trEra: "Çok Kutuplu 21. Yüzyıl • 1 Ay/Tur", enEra: "Multipolar 21st Century • 1 Mo/Turn", trDesc: "Yapay zeka yarışı, enerji koridorları ve modern ittifak blokları arasında küresel strateji.", enDesc: "Navigate modern alliances, energy corridors, and multipolar superpower rivalry across 270 provinces." },
@@ -1608,7 +1608,7 @@
     ];
 
     function getIdeConfigJson(ide, transport, projectPath) {
-      const cleanPath = (projectPath || "C:/Users/Test/Desktop/Mur4History").replace(/\\/g, "/");
+      const cleanPath = (projectPath || "C:/Mur4History").replace(/\\/g, "/");
       if (transport === "stdio") {
         return JSON.stringify({
           mcpServers: {
@@ -1643,7 +1643,7 @@
     }
 
     function buildMegaPrompt(lang, projectPath) {
-      const cleanPath = (projectPath || "C:/Users/Test/Desktop/Mur4History").replace(/\\/g, "/");
+      const cleanPath = (projectPath || "C:/Mur4History").replace(/\\/g, "/");
       if (lang === "tr") {
         return `Sen Mur4History Alternatif Tarih & Büyük Strateji Simülasyonu'nun Baş Oyun Yöneticisi (AI Game Master) ve Kurulum Asistanısın.
 
@@ -1803,10 +1803,8 @@ STEP 3 — ENTER THE ZERO-IDLE-TOKEN GAME MASTER STANDBY LOOP:
         launchCode = `git clone https://github.com/Mur4t0/Mur4History.git
 cd Mur4History
 
-:: Mur4History-Play.bat icindeki PROJECT_DIR satirini kendi yolunuza gore duzenleyin:
-set "PROJECT_DIR=C:\\Users\\SeninKullaniciAdin\\Desktop\\Mur4History"
-
-:: Ardindan cift tiklayin veya terminalden baslatin:
+:: Hicbir dosya duzenlemeden cift tiklayin veya baslatin!
+:: Bulundugu klasorde node_modules / .env / dev.db yoksa otomatik kurar:
 .\\Mur4History-Play.bat`;
       } else if (activeLaunchMode === "node") {
         launchHeader = isTr
@@ -1844,13 +1842,13 @@ npm run dev
       `;
 
       document.getElementById("bat-warning-box").innerHTML = `
-        ${ICONS.alert}
+        ${ICONS.check}
         <div>
-          <strong style="color:#fff;">${isTr ? "Önemli (.bat Dosyalarını Kendinize Göre Düzenleyin):" : "Important (Customize the .bat Paths for Your PC):"}</strong>
+          <strong style="color:#fff;">${isTr ? "Tam Otomatik Kurulum (Hangi Klasörde Olursa Olsun Çalışır):" : "Plug-and-Play Launcher (Works Inside Any Folder):"}</strong>
           <div style="margin-top:4px;">
             ${isTr
-              ? "<code>Mur4History-Play.bat</code> ve <code>Mur4History-Stop.bat</code> dosyalarını çalıştırmadan önce bir metin editörüyle açıp <code>set \"PROJECT_DIR=...\"</code> (ve gerekiyorsa Node.js / port <code>3000</code>) satırlarını kendi bilgisayarınızdaki proje klasör yoluna göre değiştirmeniz gerekmektedir."
-              : "Before running <code>Mur4History-Play.bat</code> or <code>Mur4History-Stop.bat</code>, open them in a text editor and update <code>set \"PROJECT_DIR=...\"</code> (and your Node.js / port <code>3000</code> settings if needed) to match your local folder path."}
+              ? "Bilgisayarınızda yalnızca Node.js 20+ bulunması yeterlidir. <code>Mur4History-Play.bat</code> bulunduğu klasör ne olursa olsun <code>.env</code>, <code>node_modules</code> (<code>npm install</code>), Prisma SQLite veritabanı ve Next.js derlemesini eksiksiz otomatik kurup oyunu başlatır."
+              : "Only Node.js 20+ is required on your PC. Wherever you place or clone the repository, <code>Mur4History-Play.bat</code> automatically creates <code>.env</code>, installs <code>node_modules</code> if missing, initializes SQLite, builds Next.js, and launches the game."}
           </div>
         </div>
       `;

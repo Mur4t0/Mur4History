@@ -139,15 +139,7 @@ npm run setup
 npm run dev
 ```
 
-> **One-Click Windows Launcher:** Double-click `Mur4History-Play.bat` in the repository root to automatically install, build, and launch `localhost:3000`, and use `Mur4History-Stop.bat` to stop the background server.
-
-> [!IMPORTANT]
-> **IMPORTANT — Customize `Mur4History-Play.bat` and `Mur4History-Stop.bat` for Your Own PC:**
-> Before running the Windows `.bat` scripts after cloning, review and adapt them to match your local machine and directory layout:
-> 1. **Folder Name & Process Filter (`Mur4History-Stop.bat`)**: The PowerShell stop command filters `node.exe` Next.js processes whose command line matches `Mur4History|paxhistoryMur4t`. If you cloned the repository into a differently named folder (e.g., `C:\Games\MyStrategyGame`), update that filter pattern to match your folder name.
-> 2. **Port Number (`Mur4History-Play.bat`)**: Both scripts default to port `3000` (`--port 3000` and `http://127.0.0.1:3000` / `http://localhost:3000`). If port `3000` is already in use on your machine, update the port in the `.bat` files, your `.env` file, and your MCP client URL.
-> 3. **Working Directory & Node.js `PATH`**: `Mur4History-Play.bat` runs from its own directory (`%~dp0`) and checks `where node` on your system `PATH`. If Node.js 20+ is installed in a custom path or if you move the `.bat` files to your Desktop, update the working directory and `node` executable paths accordingly.
-> 4. **Environment File (`.env`)**: Make sure to create your `.env` file from `.env.example` (`copy .env.example .env`) on first setup.
+> **One-Click Windows Launcher:** Only Node.js 20+ is required on your PC. Regardless of which folder you clone or extract the repository into, simply double-click `Mur4History-Play.bat`—if `.env`, `node_modules` (`npm install`), the Prisma SQLite database (`dev.db`), or the Next.js production build are missing in that folder, it automatically installs and builds everything on first launch and opens `http://localhost:3000`. Run `Mur4History-Stop.bat` anytime to stop the server.
 
 ### 2. Run via GitHub Packages (Docker / GHCR)
 
