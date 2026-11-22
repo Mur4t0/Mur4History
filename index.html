@@ -1,0 +1,2295 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mur4History • Alternatif Tarih & Büyük Strateji MCP Simülasyon Platformu</title>
+  <meta name="description" content="Mur4History: Kendi yapay zeka istemcinizi (Antigravity, Cursor, Claude Desktop) MCP üzerinden bağlayarak sıfır ek API maliyetiyle 270 eyaletlik dünya haritasını yönettiğiniz açık kaynak büyük strateji simülatörü." />
+  <link rel="icon" type="image/png" href="./assets/mur4history-icon.png" />
+  <style>
+    :root {
+      --bg: #03050a;
+      --bg-deep: #060a13;
+      --surface: rgba(11, 16, 28, 0.86);
+      --surface-2: rgba(17, 25, 43, 0.92);
+      --surface-3: rgba(24, 35, 58, 0.75);
+      --border: rgba(255, 255, 255, 0.11);
+      --border-copper: rgba(207, 127, 86, 0.42);
+      --ivory: #efe3c8;
+      --copper: #cf7f56;
+      --copper-bright: #e59a72;
+      --text: #eaf0fb;
+      --muted: #94a3b8;
+      --emerald: #34d399;
+      --cyan: #38bdf8;
+      --indigo: #818cf8;
+      --amber: #fbbf24;
+      --rose: #fb7185;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background:
+        radial-gradient(ellipse 85% 50% at 50% -5%, rgba(207, 127, 86, 0.16), transparent 70%),
+        radial-gradient(ellipse 60% 45% at 88% 18%, rgba(56, 189, 248, 0.09), transparent 70%),
+        radial-gradient(ellipse 55% 40% at 12% 35%, rgba(99, 102, 241, 0.08), transparent 70%),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    code, pre {
+      font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 22px;
+    }
+
+    /*Animations*/
+    @keyframes mur4Orbit {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes mur4PulseGlow {
+      0%, 100% { opacity: 0.45; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(1.07); }
+    }
+
+    @keyframes mur4Shimmer {
+      0% { transform: translateX(-140%) skewX(-18deg); }
+      100% { transform: translateX(340%) skewX(-18deg); }
+    }
+
+    @keyframes mur4Ping {
+      0% { transform: scale(1); opacity: 0.85; }
+      75%, 100% { transform: scale(2.2); opacity: 0; }
+    }
+
+    /* Header / Navbar */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 60;
+      backdrop-filter: blur(16px);
+      background: rgba(4, 7, 14, 0.88);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 66px;
+      gap: 14px;
+      flex-wrap: wrap;
+      padding: 8px 0;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-weight: 700;
+      font-size: 19px;
+      letter-spacing: 0.01em;
+    }
+
+    .brand img {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      border: 1px solid rgba(239, 227, 200, 0.35);
+      box-shadow: 0 0 18px rgba(207, 127, 86, 0.25);
+    }
+
+    .brand .m4 { color: var(--ivory); }
+    .brand .hist { color: var(--copper); }
+
+    .engine-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--emerald);
+      background: rgba(16, 185, 129, 0.11);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+    }
+
+    .pulse-dot {
+      position: relative;
+      display: inline-flex;
+      width: 8px;
+      height: 8px;
+    }
+
+    .pulse-dot::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: currentColor;
+      animation: mur4Ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+
+    .pulse-dot::after {
+      content: "";
+      position: relative;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .nav-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 9px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--muted);
+      transition: all 0.18s ease;
+    }
+
+    .nav-tab:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-pill-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ivory);
+      transition: all 0.2s ease;
+    }
+
+    .nav-pill-link.discord-pill {
+      border-color: rgba(129, 140, 248, 0.38);
+      background: rgba(88, 101, 242, 0.16);
+      color: #e0e7ff;
+    }
+
+    .nav-pill-link.discord-pill:hover {
+      border-color: var(--cyan);
+      background: rgba(88, 101, 242, 0.28);
+      transform: translateY(-1px);
+    }
+
+    .nav-pill-link.github-pill:hover {
+      border-color: var(--copper);
+      transform: translateY(-1px);
+    }
+
+    .nav-pill-link img {
+      width: 19px;
+      height: 19px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid var(--copper);
+    }
+
+    .lang-pill {
+      display: inline-flex;
+      padding: 2px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .lang-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 5px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .lang-btn.active {
+      background: linear-gradient(135deg, #efe3c8, #cf7f56);
+      color: #090b10;
+    }
+
+    /* Hero with Interactive 3D Globe Canvas */
+    .hero-wrap {
+      position: relative;
+      overflow: hidden;
+      border-bottom: 1px solid var(--border);
+      padding: 52px 0 48px;
+    }
+
+    #globe-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      opacity: 0.55;
+    }
+
+    .hero {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+    }
+
+    .hero-logo {
+      height: 136px;
+      width: auto;
+      max-width: 90%;
+      margin-bottom: 14px;
+      filter: drop-shadow(0 10px 32px rgba(207, 127, 86, 0.28));
+    }
+
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 9px;
+      margin-bottom: 20px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 13px;
+      border-radius: 999px;
+      border: 1px solid rgba(239, 227, 200, 0.2);
+      background: rgba(13, 20, 36, 0.85);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ivory);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+    }
+
+    .badge svg {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+
+    h1 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2rem, 4.3vw, 3.25rem);
+      margin: 0 auto 14px;
+      max-width: 920px;
+      letter-spacing: -0.02em;
+      line-height: 1.18;
+      background: linear-gradient(135deg, #ffffff 0%, #efe3c8 52%, #cf7f56 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      max-width: 780px;
+      margin: 0 auto 26px;
+      color: #b4c2d9;
+      font-size: 15.5px;
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 12px 22px;
+      border-radius: 13px;
+      font-size: 13.5px;
+      font-weight: 700;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+
+    .btn svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      border-color: rgba(239, 227, 200, 0.45);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--ivory), var(--copper));
+      color: #090b10;
+      border-color: transparent;
+      box-shadow: 0 10px 28px rgba(207, 127, 86, 0.28);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 14px 34px rgba(207, 127, 86, 0.4);
+    }
+
+    .btn-emerald {
+      background: linear-gradient(135deg, #34d399, #059669);
+      color: #04130e;
+      border-color: transparent;
+      box-shadow: 0 10px 28px rgba(16, 185, 129, 0.25);
+    }
+
+    /* Stats Ribbon */
+    .stats-ribbon {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      gap: 12px;
+      margin: 32px auto 0;
+      max-width: 1020px;
+    }
+
+    .stat-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 16px;
+      border-radius: 15px;
+      border: 1px solid var(--border);
+      background: rgba(10, 15, 27, 0.84);
+      text-align: left;
+    }
+
+    .stat-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 11px;
+      background: rgba(207, 127, 86, 0.14);
+      border: 1px solid rgba(207, 127, 86, 0.35);
+      color: var(--ivory);
+      flex-shrink: 0;
+    }
+
+    .stat-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .stat-val {
+      font-family: Georgia, serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--ivory);
+      line-height: 1.15;
+    }
+
+    .stat-lbl {
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+
+    /* Sections */
+    section {
+      padding: 46px 0;
+    }
+
+    .sec-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .sec-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--copper-bright);
+      margin-bottom: 6px;
+    }
+
+    .sec-eyebrow svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .sec-title {
+      font-family: Georgia, serif;
+      font-size: clamp(1.45rem, 2.6vw, 2rem);
+      font-weight: 700;
+      margin: 0;
+      color: var(--ivory);
+    }
+
+    .sec-desc {
+      margin: 4px 0 0;
+      font-size: 14px;
+      color: var(--muted);
+      max-width: 720px;
+    }
+
+    /* ============================================================
+       ADVANCED INTERACTIVE MCP & INSTALLATION TUTORIAL HUB
+       ============================================================ */
+    .tutorial-hub {
+      border-radius: 24px;
+      border: 1px solid var(--border-copper);
+      background: linear-gradient(160deg, rgba(14, 21, 38, 0.96), rgba(7, 11, 20, 0.98));
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55), 0 0 40px rgba(207, 127, 86, 0.08);
+      overflow: hidden;
+    }
+
+    .tutorial-top-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 20px 26px;
+      background: rgba(207, 127, 86, 0.08);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .gate-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 13px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(251, 191, 36, 0.13);
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      color: #fde68a;
+    }
+
+    .gate-pill svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .step-nav {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      padding: 18px 26px;
+      background: rgba(5, 8, 15, 0.65);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .step-tab-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 15px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(15, 22, 38, 0.75);
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+
+    .step-tab-btn:hover {
+      border-color: rgba(239, 227, 200, 0.35);
+      background: rgba(22, 32, 54, 0.9);
+    }
+
+    .step-tab-btn.active {
+      border-color: var(--copper);
+      background: linear-gradient(135deg, rgba(207, 127, 86, 0.22), rgba(239, 227, 200, 0.07));
+      box-shadow: 0 8px 24px rgba(207, 127, 86, 0.16);
+    }
+
+    .step-num-circle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid var(--border);
+      font-weight: 800;
+      font-size: 13px;
+      color: var(--ivory);
+      flex-shrink: 0;
+    }
+
+    .step-tab-btn.active .step-num-circle {
+      background: linear-gradient(135deg, var(--ivory), var(--copper));
+      color: #090b10;
+      border-color: transparent;
+    }
+
+    .step-tab-meta {
+      min-width: 0;
+    }
+
+    .step-tab-kicker {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--copper-bright);
+    }
+
+    .step-tab-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tutorial-body {
+      padding: 26px;
+    }
+
+    .tut-panel {
+      display: none;
+    }
+
+    .tut-panel.active {
+      display: block;
+    }
+
+    .sub-pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .sub-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 14px;
+      border-radius: 11px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 40, 0.85);
+      color: var(--muted);
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .sub-pill svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .sub-pill.active {
+      border-color: var(--copper);
+      background: rgba(207, 127, 86, 0.2);
+      color: var(--ivory);
+    }
+
+    .code-card {
+      position: relative;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: #050811;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+
+    .code-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 16px;
+      background: rgba(16, 24, 42, 0.9);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ivory);
+    }
+
+    .code-card-head-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .code-card-head-left svg {
+      width: 15px;
+      height: 15px;
+      color: var(--copper-bright);
+    }
+
+    .copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(239, 227, 200, 0.25);
+      background: rgba(207, 127, 86, 0.18);
+      color: var(--ivory);
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .copy-btn:hover {
+      background: rgba(207, 127, 86, 0.32);
+      border-color: var(--ivory);
+    }
+
+    .copy-btn.copied {
+      background: rgba(16, 185, 129, 0.22);
+      border-color: var(--emerald);
+      color: #a7f3d0;
+    }
+
+    .copy-btn svg {
+      width: 13px;
+      height: 13px;
+    }
+
+    .code-card pre {
+      margin: 0;
+      padding: 16px;
+      overflow-x: auto;
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: #a7f3d0;
+      max-height: 360px;
+    }
+
+    .warning-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-top: 16px;
+      padding: 15px 18px;
+      border-radius: 15px;
+      border: 1px solid rgba(251, 191, 36, 0.38);
+      background: rgba(251, 191, 36, 0.08);
+      color: #fde68a;
+      font-size: 13px;
+    }
+
+    .warning-banner svg {
+      width: 20px;
+      height: 20px;
+      color: var(--emerald);
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .path-input-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      background: rgba(14, 25, 45, 0.75);
+      margin-bottom: 16px;
+    }
+
+    .path-input-bar label {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--cyan);
+    }
+
+    .path-input-bar label svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    .path-input {
+      flex: 1;
+      min-width: 240px;
+      padding: 8px 12px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: #04070f;
+      color: #fff;
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-size: 12.5px;
+    }
+
+    .path-input:focus {
+      outline: none;
+      border-color: var(--cyan);
+    }
+
+    /* Prompt Showcase Box */
+    .mega-prompt-shell {
+      border-radius: 18px;
+      border: 1px solid rgba(52, 211, 153, 0.38);
+      background: linear-gradient(165deg, rgba(6, 22, 24, 0.92), rgba(5, 10, 20, 0.96));
+      padding: 20px;
+    }
+
+    .mega-prompt-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    /* Architecture & 14 MCP Tools Grid */
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
+    .tool-card {
+      padding: 16px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      transition: transform 0.18s ease, border-color 0.18s ease;
+    }
+
+    .tool-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-copper);
+    }
+
+    .tool-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .tool-name {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--ivory);
+    }
+
+    .tool-name svg {
+      width: 15px;
+      height: 15px;
+      color: var(--copper-bright);
+    }
+
+    .tool-tag {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(207, 127, 86, 0.15);
+      color: var(--copper-bright);
+      border: 1px solid rgba(207, 127, 86, 0.3);
+    }
+
+    .tool-desc {
+      margin: 0;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    /* Scenarios Grid */
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(265px, 1fr));
+      gap: 18px;
+    }
+
+    .scen-card {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      overflow: hidden;
+      transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+    }
+
+    .scen-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--border-copper);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.48);
+    }
+
+    .scen-img-wrap {
+      position: relative;
+      aspect-ratio: 16 / 10;
+      overflow: hidden;
+    }
+
+    .scen-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.35s ease;
+    }
+
+    .scen-card:hover .scen-img {
+      transform: scale(1.05);
+    }
+
+    .scen-year-badge {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(5, 8, 16, 0.85);
+      border: 1px solid rgba(239, 227, 200, 0.35);
+      backdrop-filter: blur(8px);
+      font-family: Georgia, serif;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ivory);
+    }
+
+    .scen-year-badge svg {
+      width: 12px;
+      height: 12px;
+      color: var(--copper-bright);
+    }
+
+    .scen-body {
+      padding: 16px;
+    }
+
+    .scen-body h3 {
+      margin: 0 0 5px;
+      font-family: Georgia, serif;
+      font-size: 16px;
+      color: #fff;
+    }
+
+    .scen-era {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--copper-bright);
+      margin-bottom: 6px;
+    }
+
+    .scen-desc {
+      margin: 0;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    /* Community Showcase Cards (Animated Discord & GitHub Profile Card) */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 20px;
+    }
+
+    .comm-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      border-radius: 22px;
+      padding: 24px;
+      transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .comm-card.discord-card {
+      border: 1px solid rgba(129, 140, 248, 0.38);
+      background: linear-gradient(145deg, rgba(14, 20, 48, 0.95), rgba(9, 13, 27, 0.96), rgba(6, 19, 31, 0.96));
+      box-shadow: 0 18px 50px rgba(79, 70, 229, 0.16);
+    }
+
+    .comm-card.discord-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(56, 189, 248, 0.6);
+      box-shadow: 0 24px 60px rgba(56, 189, 248, 0.22);
+    }
+
+    .comm-card.github-card {
+      border: 1px solid rgba(251, 191, 36, 0.32);
+      background: linear-gradient(145deg, rgba(18, 22, 32, 0.96), rgba(11, 15, 23, 0.96), rgba(23, 17, 13, 0.96));
+      box-shadow: 0 18px 50px rgba(207, 127, 86, 0.15);
+    }
+
+    .comm-card.github-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(251, 191, 36, 0.62);
+      box-shadow: 0 24px 60px rgba(207, 127, 86, 0.24);
+    }
+
+    .comm-orb {
+      position: absolute;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      filter: blur(42px);
+      pointer-events: none;
+      animation: mur4PulseGlow 6s ease-in-out infinite;
+    }
+
+    .comm-shimmer {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .comm-shimmer::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 35%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.055), transparent);
+      animation: mur4Shimmer 6.5s ease-in-out infinite;
+    }
+
+    .comm-top {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .comm-identity {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .avatar-halo-wrap {
+      position: relative;
+      width: 68px;
+      height: 68px;
+      flex-shrink: 0;
+    }
+
+    .avatar-halo {
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      background: conic-gradient(from 0deg, #efe3c8, #cf7f56, #38bdf8, #efe3c8);
+      animation: mur4Orbit 9s linear infinite;
+      filter: blur(1px);
+    }
+
+    .discord-halo {
+      position: absolute;
+      inset: -3px;
+      border-radius: 18px;
+      background: conic-gradient(from 0deg, #5865F2, #38bdf8, #a855f7, #5865F2);
+      animation: mur4Orbit 9s linear infinite;
+      filter: blur(1.5px);
+    }
+
+    .comm-avatar {
+      position: relative;
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid #0b0f17;
+      background: #05070e;
+    }
+
+    .comm-icon {
+      position: relative;
+      width: 68px;
+      height: 68px;
+      border-radius: 16px;
+      object-fit: cover;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      background: #05070e;
+    }
+
+    .status-corner-dot {
+      position: absolute;
+      bottom: -1px;
+      right: -1px;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: var(--emerald);
+      border: 3px solid #090d1b;
+    }
+
+    .bento-stats {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 9px;
+      margin-top: 16px;
+    }
+
+    .bento-cell {
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.36);
+      padding: 9px 12px;
+    }
+
+    .bento-cell-lbl {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .bento-cell-lbl svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .bento-cell-val {
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      margin-top: 2px;
+    }
+
+    .comm-footer {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .comm-cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 15px;
+      border-radius: 11px;
+      font-size: 12px;
+      font-weight: 700;
+      transition: transform 0.18s ease;
+    }
+
+    .comm-cta-btn:hover {
+      transform: scale(1.03);
+    }
+
+    .comm-cta-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    footer {
+      margin-top: 28px;
+      border-top: 1px solid var(--border);
+      background: rgba(3, 5, 10, 0.92);
+      padding: 26px 0 36px;
+      color: var(--muted);
+      font-size: 12.5px;
+    }
+
+    .footer-inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    @media (max-width: 768px) {
+      .nav-links {
+        display: none;
+      }
+      .tutorial-body {
+        padding: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container nav">
+      <div class="brand-group">
+        <a class="brand" href="#top">
+          <img src="./assets/mur4history-icon.png" alt="Mur4History" />
+          <span><span class="m4">Mur4</span><span class="hist">History</span></span>
+        </a>
+        <span class="engine-pill">
+          <span class="pulse-dot"></span>
+          <span id="nav-engine-tag">MCP</span>
+        </span>
+      </div>
+
+      <nav class="nav-links" aria-label="Primary">
+        <a class="nav-tab" href="#tutorial" id="nav-tut">Gelişmiş MCP Rehberi</a>
+        <a class="nav-tab" href="#ai-prompt" id="nav-prompt">AI Kurulum Promptu</a>
+        <a class="nav-tab" href="#scenarios" id="nav-scen">12 Senaryo</a>
+        <a class="nav-tab" href="#mcp-tools" id="nav-tools">14 MCP Aracı</a>
+        <a class="nav-tab" href="#community" id="nav-comm">Topluluk</a>
+      </nav>
+
+      <div class="nav-right">
+        <a class="nav-pill-link discord-pill" href="https://discord.gg/pZSkGpW2yK" target="_blank" rel="noopener noreferrer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z" />
+          </svg>
+          <span>Discord</span>
+          <span class="pulse-dot" style="color:var(--emerald);width:6px;height:6px;"></span>
+        </a>
+        <a class="nav-pill-link github-pill" href="https://github.com/Mur4t0" target="_blank" rel="noopener noreferrer">
+          <img src="./assets/mur4t0-avatar.png" alt="Mur4t0" />
+          <span>@Mur4t0</span>
+        </a>
+        <div class="lang-pill" role="group" aria-label="Language">
+          <button id="btn-tr" class="lang-btn" type="button" onclick="setLang('tr')">
+            <svg width="14" height="10" viewBox="0 0 24 16" aria-hidden="true" style="border-radius:2px;">
+              <rect width="24" height="16" fill="#E30A17"/>
+              <circle cx="9.2" cy="8" r="4" fill="#fff"/>
+              <circle cx="10.3" cy="8" r="3.2" fill="#E30A17"/>
+              <polygon points="14.5,8 16.9,8.8 15.4,6.7 15.4,9.3 16.9,7.2" fill="#fff"/>
+            </svg>
+            <span>TR</span>
+          </button>
+          <button id="btn-en" class="lang-btn" type="button" onclick="setLang('en')">
+            <svg width="14" height="10" viewBox="0 0 24 16" aria-hidden="true" style="border-radius:2px;">
+              <rect width="24" height="16" fill="#012169"/>
+              <path d="M0,0 L24,16 M24,0 L0,16" stroke="#fff" stroke-width="2.6"/>
+              <path d="M0,0 L24,16 M24,0 L0,16" stroke="#C8102E" stroke-width="1.4"/>
+              <path d="M12,0 V16 M0,8 H24" stroke="#fff" stroke-width="4.2"/>
+              <path d="M12,0 V16 M0,8 H24" stroke="#C8102E" stroke-width="2.4"/>
+            </svg>
+            <span>EN</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO WITH ROTATING 3D COSMIC GLOBE -->
+  <div class="hero-wrap" id="top">
+    <canvas id="globe-canvas"></canvas>
+    <div class="container hero">
+      <img class="hero-logo" src="./assets/mur4history-logo.png" alt="Mur4History" />
+      <div class="badges" id="badges"></div>
+      <h1 id="hero-title"></h1>
+      <p class="subtitle" id="hero-sub"></p>
+
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#tutorial" id="cta-tutorial"></a>
+        <a class="btn btn-emerald" href="#ai-prompt" id="cta-prompt"></a>
+        <a class="btn" href="https://github.com/Mur4t0/Mur4History" target="_blank" rel="noopener noreferrer" id="cta-repo"></a>
+      </div>
+
+      <div class="stats-ribbon" id="stats-ribbon"></div>
+    </div>
+  </div>
+
+  <main class="container">
+    <!-- ============================================================
+         1. ADVANCED INTERACTIVE MCP & INSTALLATION TUTORIAL HUB
+         ============================================================ -->
+    <section id="tutorial">
+      <div class="sec-header">
+        <div>
+          <div class="sec-eyebrow" id="tut-eyebrow"></div>
+          <h2 class="sec-title" id="tut-title"></h2>
+          <p class="sec-desc" id="tut-desc"></p>
+        </div>
+      </div>
+
+      <div class="tutorial-hub">
+        <div class="tutorial-top-bar">
+          <div class="gate-pill" id="tut-gate-badge"></div>
+          <div style="font-size:12.5px;color:var(--muted);" id="tut-top-note"></div>
+        </div>
+
+        <!-- 4 Interactive Tutorial Steps -->
+        <div class="step-nav" id="step-nav"></div>
+
+        <div class="tutorial-body">
+          <!-- STEP 1: DOWNLOAD & LAUNCH (.BAT / NODE / DOCKER) -->
+          <div class="tut-panel active" id="panel-step-1">
+            <div class="sub-pill-row" id="launch-mode-pills"></div>
+            <div id="launch-mode-content"></div>
+            <div class="warning-banner" id="bat-warning-box" style="border-color:rgba(52,211,153,0.38);background:rgba(16,185,129,0.09);color:#d1fae5;"></div>
+          </div>
+
+          <!-- STEP 2: IDE & MCP TRANSPORT CONFIG GENERATOR -->
+          <div class="tut-panel" id="panel-step-2">
+            <div class="path-input-bar">
+              <label for="project-path-input" id="path-input-label"></label>
+              <input
+                id="project-path-input"
+                class="path-input"
+                type="text"
+                value="C:/Mur4History"
+                oninput="updateProjectPath(this.value)"
+              />
+            </div>
+
+            <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;margin-bottom:10px;">
+              <div class="sub-pill-row" id="ide-selector-pills" style="margin-bottom:0;"></div>
+              <div class="sub-pill-row" id="transport-selector-pills" style="margin-bottom:0;"></div>
+            </div>
+
+            <div id="ide-config-output"></div>
+          </div>
+
+          <!-- STEP 3: ONE-CLICK AI AUTO-SETUP & FULL GAME INTRO MEGA PROMPT -->
+          <div class="tut-panel" id="panel-step-3">
+            <div id="step3-prompt-mount"></div>
+          </div>
+
+          <!-- STEP 4: MCP LOCK GATE & ZERO-IDLE-TOKEN GAME LOOP -->
+          <div class="tut-panel" id="panel-step-4">
+            <div id="step4-architecture-mount"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         2. DIRECT ONE-CLICK AI SETUP + FULL GAME INTRO MEGA-PROMPT
+         ============================================================ -->
+    <section id="ai-prompt">
+      <div class="sec-header">
+        <div>
+          <div class="sec-eyebrow" id="prompt-eyebrow"></div>
+          <h2 class="sec-title" id="prompt-sec-title"></h2>
+          <p class="sec-desc" id="prompt-sec-desc"></p>
+        </div>
+      </div>
+
+      <div class="mega-prompt-shell">
+        <div class="mega-prompt-header">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="stat-icon" style="background:rgba(16,185,129,0.16);border-color:rgba(52,211,153,0.4);color:var(--emerald);" id="prompt-box-icon"></span>
+            <div>
+              <div style="font-weight:700;font-size:15px;color:#fff;" id="prompt-box-title"></div>
+              <div style="font-size:12px;color:var(--muted);" id="prompt-box-sub"></div>
+            </div>
+          </div>
+          <button class="copy-btn" type="button" id="copy-mega-prompt-btn" onclick="copyTextById('mega-prompt-pre', 'copy-mega-prompt-btn')"></button>
+        </div>
+
+        <div class="code-card" style="margin-top:0;">
+          <pre id="mega-prompt-pre" style="max-height:390px;white-space:pre-wrap;color:#d1fae5;"></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         3. 12 OFFICIAL HISTORICAL PRESET SCENARIOS
+         ============================================================ -->
+    <section id="scenarios">
+      <div class="sec-header">
+        <div>
+          <div class="sec-eyebrow" id="scen-eyebrow"></div>
+          <h2 class="sec-title" id="sec-scen-title"></h2>
+          <p class="sec-desc" id="sec-scen-desc"></p>
+        </div>
+        <div class="sub-pill-row" id="scenario-era-pills" style="margin-bottom:0;"></div>
+      </div>
+      <div class="grid-4" id="scenario-grid"></div>
+    </section>
+
+    <!-- ============================================================
+         4. 14 MCP TOOLS & 9 RESOURCES ARCHITECTURE EXPLORER
+         ============================================================ -->
+    <section id="mcp-tools">
+      <div class="sec-header">
+        <div>
+          <div class="sec-eyebrow" id="tools-eyebrow"></div>
+          <h2 class="sec-title" id="sec-tools-title"></h2>
+          <p class="sec-desc" id="sec-tools-desc"></p>
+        </div>
+      </div>
+      <div class="tools-grid" id="tools-grid"></div>
+    </section>
+
+    <!-- ============================================================
+         5. COMMUNITY & CREATOR SHOWCASE (DISCORD + GITHUB PROFILE)
+         ============================================================ -->
+    <section id="community">
+      <div class="sec-header">
+        <div>
+          <div class="sec-eyebrow" id="comm-eyebrow"></div>
+          <h2 class="sec-title" id="sec-comm-title"></h2>
+          <p class="sec-desc" id="sec-comm-desc"></p>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- Animated Mur4Code Discord Card -->
+        <a class="comm-card discord-card" href="https://discord.gg/pZSkGpW2yK" target="_blank" rel="noopener noreferrer">
+          <div class="comm-orb" style="top:-40px;right:-40px;background:radial-gradient(circle,rgba(88,101,242,0.45),rgba(56,189,248,0.15),transparent);"></div>
+          <div class="comm-shimmer"></div>
+
+          <div class="comm-top">
+            <div class="comm-identity">
+              <div class="avatar-halo-wrap">
+                <div class="discord-halo"></div>
+                <img class="comm-icon" src="./assets/mur4code-icon.png" alt="Mur4Code Discord" />
+                <span class="status-corner-dot"></span>
+              </div>
+              <div>
+                <div style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;background:rgba(88,101,242,0.25);border:1px solid rgba(129,140,248,0.45);font-size:10.5px;font-weight:700;color:#c7d2fe;text-transform:uppercase;letter-spacing:0.06em;">
+                  <span id="dc-badge-svg"></span>
+                  <span id="dc-badge-text">RESMİ DISCORD</span>
+                </div>
+                <h3 style="margin:6px 0 3px;font-family:Georgia,serif;font-size:22px;color:#fff;">Mur4Code</h3>
+                <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:#cbd5e1;">
+                  <span style="display:inline-flex;align-items:center;gap:6px;color:var(--emerald);font-weight:600;">
+                    <span class="pulse-dot" style="color:var(--emerald);"></span>
+                    <span id="dc-online-text">15 Çevrimiçi</span>
+                  </span>
+                  <span style="color:#475569;">•</span>
+                  <span id="dc-members-text">36 Üye</span>
+                </div>
+              </div>
+            </div>
+            <span id="dc-ext-arrow" style="color:#94a3b8;"></span>
+          </div>
+
+          <p id="comm-dc-desc" style="position:relative;z-index:2;margin:16px 0 0;font-size:13px;color:#cbd5e1;"></p>
+
+          <div class="comm-footer">
+            <code style="padding:5px 10px;border-radius:8px;background:rgba(0,0,0,0.45);border:1px solid rgba(255,255,255,0.1);font-size:11.5px;color:#a5f3fc;">
+              discord.gg/pZSkGpW2yK
+            </code>
+            <span class="comm-cta-btn" style="background:linear-gradient(135deg,#5865F2,#06b6d4);color:#fff;">
+              <span id="dc-cta-icon"></span>
+              <span id="dc-cta-text">Sunucuya Katıl</span>
+            </span>
+          </div>
+        </a>
+
+        <!-- Animated @Mur4t0 GitHub Developer Profile Card -->
+        <div class="comm-card github-card">
+          <div class="comm-orb" style="bottom:-40px;right:-40px;background:radial-gradient(circle,rgba(207,127,86,0.4),rgba(239,227,200,0.15),transparent);"></div>
+          <div class="comm-shimmer"></div>
+
+          <div class="comm-top">
+            <div class="comm-identity">
+              <div class="avatar-halo-wrap">
+                <div class="avatar-halo"></div>
+                <img id="gh-avatar-img" class="comm-avatar" src="./assets/mur4t0-avatar.png" alt="Mur4t (@Mur4t0)" />
+                <span class="status-corner-dot" style="background:var(--amber);"></span>
+              </div>
+              <div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                  <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.16);font-size:10px;font-weight:700;color:#f1f5f9;text-transform:uppercase;">
+                    <span id="gh-badge-svg"></span>
+                    <span>GitHub</span>
+                  </span>
+                  <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.38);font-size:10px;font-weight:700;color:#fde68a;text-transform:uppercase;">
+                    <span id="gh-creator-svg"></span>
+                    <span id="gh-creator-tag">GELİŞTİRİCİ &amp; VIBE CODER</span>
+                  </span>
+                </div>
+                <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px;">
+                  <h3 id="gh-display-name" style="margin:0;font-family:Georgia,serif;font-size:22px;color:var(--ivory);">Mur4t</h3>
+                  <span style="font-family:monospace;font-size:13px;font-weight:700;color:var(--copper);">@Mur4t0</span>
+                </div>
+                <p id="comm-gh-desc" style="margin:3px 0 0;font-size:12.5px;color:#cbd5e1;"></p>
+              </div>
+            </div>
+
+            <a href="https://github.com/Mur4t0" target="_blank" rel="noopener noreferrer" aria-label="GitHub @Mur4t0" style="color:#94a3b8;" id="gh-ext-arrow"></a>
+          </div>
+
+          <div class="bento-stats">
+            <div class="bento-cell">
+              <div class="bento-cell-lbl">
+                <span id="gh-repo-icon"></span>
+                <span id="gh-repo-lbl">Açık Repo</span>
+              </div>
+              <div class="bento-cell-val" id="gh-repo-count">14</div>
+            </div>
+            <div class="bento-cell">
+              <div class="bento-cell-lbl">
+                <span id="gh-followers-icon"></span>
+                <span id="gh-followers-lbl">Takipçi</span>
+              </div>
+              <div class="bento-cell-val" id="gh-followers-count">22</div>
+            </div>
+            <div class="bento-cell">
+              <div class="bento-cell-lbl">
+                <span id="gh-since-icon"></span>
+                <span id="gh-since-lbl">Katılım</span>
+              </div>
+              <div class="bento-cell-val" id="gh-since-year">2022</div>
+            </div>
+          </div>
+
+          <div class="comm-footer">
+            <a href="https://mur4offsets.github.io" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;background:rgba(0,0,0,0.45);border:1px solid rgba(255,255,255,0.1);font-family:monospace;font-size:11.5px;color:#fde68a;">
+              <span id="gh-blog-icon"></span>
+              <span>mur4offsets.github.io</span>
+            </a>
+            <a href="https://github.com/Mur4t0" target="_blank" rel="noopener noreferrer" class="comm-cta-btn" style="background:linear-gradient(135deg,var(--ivory),var(--copper));color:#090b10;">
+              <span id="gh-cta-text">GitHub Profiline Git</span>
+              <span id="gh-cta-arrow"></span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-inner">
+      <div style="display:flex;align-items:center;gap:10px;" id="footer-left"></div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px;" id="footer-right"></div>
+    </div>
+  </footer>
+
+  <script>
+    /* ============================================================
+       CUSTOM CODED VECTOR SVG ICON SYSTEM (ZERO EMOJIS)
+       ============================================================ */
+    const ICONS = {
+      trFlag: `<svg viewBox="0 0 24 16" fill="none" aria-hidden="true" style="border-radius:2px;"><rect width="24" height="16" fill="#E30A17"/><circle cx="9.2" cy="8" r="4" fill="#fff"/><circle cx="10.3" cy="8" r="3.2" fill="#E30A17"/><polygon points="14.5,8 16.9,8.8 15.4,6.7 15.4,9.3 16.9,7.2" fill="#fff"/></svg>`,
+      bolt: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+      cpu: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>`,
+      globe: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
+      shield: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>`,
+      terminal: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`,
+      lock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+      unlock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`,
+      copy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
+      check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+      alert: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+      folder: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
+      compass: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>`,
+      sparkles: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z"/></svg>`,
+      layers: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
+      arrowUpRight: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>`,
+      users: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+      calendar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+      github: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>`,
+      discord: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>`,
+      docker: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12.5c-.5-.3-1.5-.4-2.3-.2-.2-1.1-.9-2-1.8-2.6l-.4-.3-.3.4c-.5.7-.7 1.7-.5 2.5-.4.2-1.2.3-1.7.3H2.5c-.4 2.3.2 4.6 1.7 6.3 1.5 1.7 3.9 2.6 6.8 2.6 5.4 0 9.4-2.5 11-7 .8 0 1.6-.2 2-.8l.2-.4-.2-.8Z"/><rect x="5" y="9" width="2.5" height="2.5"/><rect x="8" y="9" width="2.5" height="2.5"/><rect x="11" y="9" width="2.5" height="2.5"/><rect x="8" y="6" width="2.5" height="2.5"/><rect x="11" y="6" width="2.5" height="2.5"/></svg>`
+    };
+
+    /* ============================================================
+       STATE FOR INTERACTIVE TUTORIAL & FILTERS
+       ============================================================ */
+    let currentLang = (navigator.language || "tr").toLowerCase().startsWith("tr") ? "tr" : "en";
+    let activeStep = 1;
+    let activeLaunchMode = "bat"; // 'bat' | 'node' | 'docker'
+    let activeIde = "antigravity"; // 'antigravity' | 'cursor' | 'claude' | 'windsurf'
+    let activeTransport = "stdio"; // 'stdio' | 'http'
+    let activeEraFilter = "all"; // 'all' | 'modern' | 'wars' | 'empires'
+    let customProjectPath = "C:/Mur4History";
+
+    const SCENARIOS = [
+      { id: "2026", year: "2026", cat: "modern", img: "./assets/2026.jpg", trTitle: "2026: Modern Jeopolitik", enTitle: "2026: Modern Geopolitics", trEra: "Çok Kutuplu 21. Yüzyıl • 1 Ay/Tur", enEra: "Multipolar 21st Century • 1 Mo/Turn", trDesc: "Yapay zeka yarışı, enerji koridorları ve modern ittifak blokları arasında küresel strateji.", enDesc: "Navigate modern alliances, energy corridors, and multipolar superpower rivalry across 270 provinces." },
+      { id: "1991", year: "1991", cat: "modern", img: "./assets/1991.jpg", trTitle: "1991: Soğuk Savaş'ın Sonu", enTitle: "1991: End of the Cold War", trEra: "SSCB Dağılışı & Yeni Düzen • 1 Ay/Tur", enEra: "Soviet Dissolution • 1 Mo/Turn", trDesc: "Demir Perde'nin çöküşü, bağımsızlığını kazanan cumhuriyetler ve Avrasya'nın yeniden şekillenişi.", enDesc: "Guide newly independent republics or reshape post-Cold War Eurasia as the Iron Curtain falls." },
+      { id: "1962", year: "1962", cat: "modern", img: "./assets/1962.jpg", trTitle: "1962: Soğuk Savaş & Küba Krizi", enTitle: "1962: Cold War Brinkmanship", trEra: "Nükleer Kutuplaşma • 1 Ay/Tur", enEra: "Nuclear Brinkmanship • 1 Mo/Turn", trDesc: "NATO ve Varşova Paktı arasında nükleer caydırıcılık, vekalet savaşları ve uzay yarışı.", enDesc: "Balance nuclear deterrence, proxy conflicts, and space-age diplomacy at the height of the Cold War." },
+      { id: "1942", year: "1942", cat: "wars", img: "./assets/1942.jpg", trTitle: "1942: Stalingrad & El Alamein", enTitle: "1942: Stalingrad & El Alamein", trEra: "II. Dünya Savaşı Dönüm Noktası • 1 Ay/Tur", enEra: "WWII Turning Point • 1 Mo/Turn", trDesc: "Volga kıyılarından Kuzey Afrika çöllerine ve Pasifik cephesine kadar savaşın en kritik kırılma anı.", enDesc: "Command Axis or Allied powers at the decisive climax of World War II across Europe, Africa, and the Pacific." },
+      { id: "1939", year: "1939", cat: "wars", img: "./assets/1939.jpg", trTitle: "1939: II. Dünya Savaşı", enTitle: "1939: World War II Outbreak", trEra: "Küresel Topyekûn Savaş • 1 Ay/Tur", enEra: "Global Total War • 1 Mo/Turn", trDesc: "Polonya seferi ile başlayan yıldırım harbi, cephe hatları ve diplomatik tarafsızlık mücadelesi.", enDesc: "Experience the outbreak of WWII with Blitzkrieg campaigns, naval blockades, and high-stakes neutrality." },
+      { id: "1936", year: "1936", cat: "wars", img: "./assets/1936.jpg", trTitle: "1936: Fırtına Öncesi", enTitle: "1936: Gathering Storm", trEra: "İki Savaş Arası Dönem • 2 Ay/Tur", enEra: "Interwar Industrialization • 2 Mo/Turn", trDesc: "Büyük fırtına öncesi sanayileşme, silahlanma, İspanya İç Savaşı ve alternatif ittifak kurguları.", enDesc: "Build industrial might and reshape pre-war diplomatic alignments before the global storm breaks." },
+      { id: "1919", year: "1919", cat: "wars", img: "./assets/1919.jpg", trTitle: "1919: Türk Kurtuluş Savaşı", enTitle: "1919: Turkish War of Independence", trEra: "Millî Mücadele & Anadolu • 1 Ay/Tur", enEra: "Anatolian Liberation • 1 Mo/Turn", trDesc: "Ankara Hükümeti ve Kuvâ-yi Milliye ile Anadolu'da bağımsızlık mücadelesi ve Lozan'a giden diplomasi.", enDesc: "Lead the Ankara Government through the Anatolian War of Independence and forge a sovereign republic." },
+      { id: "1914", year: "1914", cat: "wars", img: "./assets/1914.jpg", trTitle: "1914: I. Dünya Savaşı", enTitle: "1914: World War I", trEra: "İtilaf vs İttifak • 1 Ay/Tur", enEra: "Entente vs Central Powers • 1 Mo/Turn", trDesc: "Saraybosna suikastı sonrası siper harbi, Çanakkale cephesi ve imparatorlukların kader savaşı.", enDesc: "Rewrite the Great War across Western trenches, Gallipoli, and the Eastern Front." },
+      { id: "1877", year: "1877", cat: "empires", img: "./assets/1877.jpg", trTitle: "1877: 93 Harbi & Plevne", enTitle: "1877: 93 War & Siege of Plevna", trEra: "İmparatorluklar & Balkanlar • 1 Ay/Tur", enEra: "Balkans & Great Powers • 1 Mo/Turn", trDesc: "Gazi Osman Paşa'nın Plevne savunması, Kafkas cephesi ve Berlin Kongresi dengeleri.", enDesc: "Hold the redoubts of Plevna and balance 19th-century Great Power diplomacy across the Balkans." },
+      { id: "1812", year: "1812", cat: "empires", img: "./assets/1812.jpg", trTitle: "1812: Napolyon Savaşları", enTitle: "1812: Napoleonic Wars", trEra: "Büyük Koalisyon • 2 Ay/Tur", enEra: "Grand Empire & Coalitions • 2 Mo/Turn", trDesc: "Kıta Ablukası, Grande Armée'nin Rusya seferi ve Avrupa koalisyon savaşları.", enDesc: "Command Napoleon's Grand Empire or the Sixth Coalition from Madrid to Moscow." },
+      { id: "1526", year: "1526", cat: "empires", img: "./assets/1526.jpg", trTitle: "1526: Kanuni & Mohaç", enTitle: "1526: Suleiman & Mohács", trEra: "Osmanlı Zirvesi & Habsburg • 3 Ay/Tur", enEra: "Ottoman Zenith & Habsburgs • 3 Mo/Turn", trDesc: "Muhteşem Süleyman döneminde Orta Avrupa seferleri, Akdeniz hakimiyeti ve Habsburg rekabeti.", enDesc: "Rule at the zenith of the Ottoman Empire against Charles V's Habsburg dynasty and Safavid Persia." },
+      { id: "1444", year: "1444", cat: "empires", img: "./assets/1444.jpg", trTitle: "1444: Yeni Çağ & İmparatorluklar", enTitle: "1444: Rise of Empires", trEra: "Rönesans & Fetih Çağı • 6 Ay/Tur", enEra: "Renaissance & Conquest • 6 Mo/Turn", trDesc: "Varna sonrası Osmanlı yükselişi, İstanbul'un fethi, Coğrafi Keşifler ve Rönesans diplomasisi.", enDesc: "Guide empires from the aftermath of Varna and the Fall of Constantinople into the Age of Discovery." }
+    ];
+
+    const MCP_TOOLS = [
+      { name: "wait_for_player_action", tag: "CORE LOOP", tr: "Oyuncu emir, lider mesajı, konsey veya danışman sorusu gönderene kadar sıfır token tüketerek bekler.", en: "Suspends the AI with zero idle token burn until the player submits an order, diplomatic message, or turn advance." },
+      { name: "read_game_context", tag: "STATE", tr: "Seçili oturumun tüm ülke istatistiklerini, 270 eyalet sahipliğini, savaşları ve bekleyen emirleri okur.", en: "Reads complete session state: country metrics, 270-province ownership, wars, treaties, and pending player inputs." },
+      { name: "transfer_territory", tag: "MAP", tr: "Savaş, antlaşma veya ilhak sonucunda 270 eyaletten herhangi birini ülkeler arasında anında devreder.", en: "Transfers any of the 270 historical provinces between nations with instant live map updates via SSE." },
+      { name: "update_country_stats", tag: "ECONOMY", tr: "Ekonomi, askeri güç, istikrar, nüfus ve teknoloji puanlarını tarihsel sonuçlara göre günceller.", en: "Updates treasury, military strength, stability, manpower, and technology indexes with realistic deltas." },
+      { name: "manage_diplomacy", tag: "DIPLOMACY", tr: "Savaş ilanı, ateşkes, ittifak, ticaret antlaşması veya yaptırım kararlarını yürürlüğe koyar.", en: "Enacts declarations of war, peace treaties, defensive pacts, embargoes, and formal alliances." },
+      { name: "publish_world_event", tag: "GAZETTE", tr: "Dünya Gazetesi'ne GÜNCEL damgalı manşet haberleri, cephe raporları ve küresel kriz bültenleri yazar.", en: "Publishes rich historical headlines, front-line dispatches, and world events to the interactive Chronicle Gazette." },
+      { name: "manage_map_markers", tag: "LANDMARKS", tr: "Harita üzerine animasyonlu fabrika, askeri üs, donanma tersanesi, zirve ve çatışma işaretleri yerleştirir.", en: "Places animated map pins for factories, military bases, naval shipyards, diplomatic summits, and battlefronts." },
+      { name: "reply_leader_chat", tag: "1-ON-1", tr: "Yabancı ülke devlet başkanlarının kişiliğine bürünerek oyuncunun ikili diplomasi mesajlarını yanıtlar.", en: "Roleplays foreign heads of state in 1-on-1 diplomatic negotiations with authentic historical persona." },
+      { name: "convene_diplomatic_council", tag: "SUMMIT", tr: "Birden fazla ülkenin katıldığı uluslararası barış konferansı veya koalisyon konseyi toplar.", en: "Convenes multilateral diplomatic summits and coalition councils with multiple participating nations." },
+      { name: "reply_diplomatic_council", tag: "COUNCIL", tr: "Çok uluslu konsey masasında her ülke temsilcisinin sıra ile konuşmasını ve oylamasını simüle eder.", en: "Posts multi-leader interventions and treaty votes inside active diplomatic council chambers." },
+      { name: "reply_advisor_chat", tag: "CABINET", tr: "Başdanışman olarak oyuncuya askeri, ekonomik ve jeopolitik istihbarat tavsiyeleri sunar.", en: "Provides strategic cabinet briefings, risk assessments, and military advice as the Grand Vizier / Chief Advisor." },
+      { name: "send_diplomatic_message", tag: "DISPATCH", tr: "Diğer devletlerden oyuncuya ültimatom, ittifak teklifi veya gizli diplomatik nota gönderir.", en: "Sends proactive AI-initiated ultimatums, alliance proposals, and diplomatic cables from foreign capitals." },
+      { name: "advance_turn", tag: "TIMELINE", tr: "Tüm emirleri işledikten sonra tarihi bir sonraki tura ilerletir ve geri sarma (rollback) kaydı alır.", en: "Advances the historical timeline to the next turn and creates an automatic time-travel rollback snapshot." },
+      { name: "list_game_sessions", tag: "SESSION", tr: "Mevcut kampanyaları listeler ve switch_game_session ile aktif senaryolar arasında geçiş yapar.", en: "Lists all active campaigns and switches the AI Game Master between sessions via switch_game_session." }
+    ];
+
+    function getIdeConfigJson(ide, transport, projectPath) {
+      const cleanPath = (projectPath || "C:/Mur4History").replace(/\\/g, "/");
+      if (transport === "stdio") {
+        return JSON.stringify({
+          mcpServers: {
+            mur4history: {
+              command: "node",
+              args: [`${cleanPath}/scripts/mcp-stdio.mjs`],
+              env: {
+                MUR4HISTORY_URL: "http://localhost:3000"
+              }
+            }
+          }
+        }, null, 2);
+      } else {
+        if (ide === "claude") {
+          return JSON.stringify({
+            mcpServers: {
+              mur4history: {
+                command: "npx",
+                args: ["-y", "mcp-remote", "http://localhost:3000/api/mcp/global"]
+              }
+            }
+          }, null, 2);
+        }
+        return JSON.stringify({
+          mcpServers: {
+            mur4history: {
+              url: "http://localhost:3000/api/mcp/global"
+            }
+          }
+        }, null, 2);
+      }
+    }
+
+    function buildMegaPrompt(lang, projectPath) {
+      const cleanPath = (projectPath || "C:/Mur4History").replace(/\\/g, "/");
+      if (lang === "tr") {
+        return `Sen Mur4History Alternatif Tarih & Büyük Strateji Simülasyonu'nun Baş Oyun Yöneticisi (AI Game Master) ve Kurulum Asistanısın.
+
+1. ADIM — MCP SUNUCUSUNU OTOMATİK KUR VE BAĞLAN:
+Lütfen MCP yapılandırma dosyana (mcp_config.json / mcp.json) "mur4history" sunucusunu şu ayarlarla ekle veya zaten ekliyse doğrudan bağlan:
+- Önerilen Yerel STDIO Köprüsü:
+  "command": "node"
+  "args": ["${cleanPath}/scripts/mcp-stdio.mjs"]
+  "env": { "MUR4HISTORY_URL": "http://localhost:3000" }
+- Alternatif Doğrudan Streamable HTTP Uç Noktası:
+  "url": "http://localhost:3000/api/mcp/global"
+
+2. ADIM — BAĞLANTIYI DOĞRULA VE OYUNU BANA TAM OLARAK TANIT:
+- Bağlantıyı kurduktan sonra ilk olarak \`list_game_sessions\` ve \`read_game_context\` araçlarını çağır. (Bu çağrı lobideki MCP kilit ekranını otomatik olarak açacaktır!)
+- Ardından bana Mur4History'yi kapsamlı biçimde tanıt:
+  • 270 gerçekçi tarihsel eyaletten oluşan MapLibre GL dünya haritasını ve 14 harita görünümünü,
+  • 12 resmi tarihsel senaryoyu (1444 Yeni Çağ, 1526 Kanuni & Mohaç, 1812 Napolyon, 1877 93 Harbi & Plevne, 1914 I. Dünya Savaşı, 1919 Türk Kurtuluş Savaşı, 1936 Fırtına Öncesi, 1939 II. Dünya Savaşı, 1942 Stalingrad, 1962 Soğuk Savaş, 1991 SSCB Dağılışı, 2026 Modern Jeopolitik),
+  • Emir Konsolu'ndan askeri, ekonomik, gizli operasyon ve diplomasi emirlerini nasıl verebileceğimi,
+  • Yabancı ülke liderleriyle 1'e 1 canlı müzakere (\`reply_leader_chat\`), Çok Uluslu Diplomatik Konsey (\`convene_diplomatic_council\`), Başdanışman (\`reply_advisor_chat\`), Harita Üzeri Animasyonlu Tesis/Kriz İşaretleri (\`manage_map_markers\`) ve Dünya Gazetesi (\`publish_world_event\`) sistemlerini anlat.
+
+3. ADIM — SIFIR TOKEN BEKLEME DÖNGÜSÜNE (GAME MASTER LOOP) GİR:
+- Tanıtımı yaptıktan sonra hemen \`wait_for_player_action\` aracını çağır ve ben oyundan bir emir, lider mesajı, danışman sorusu veya tur ilerletme isteği gönderene kadar bekle.
+- Ben arayüzden her hamle yaptığımda ilgili MCP araçlarıyla (\`transfer_territory\`, \`update_country_stats\`, \`manage_diplomacy\`, \`publish_world_event\`, \`manage_map_markers\`, \`advance_turn\`) tarihsel simülasyonu yürüt ve her turun sonunda tekrar \`wait_for_player_action\` çağırarak nöbete geç!`;
+      } else {
+        return `You are the AI Game Master and Setup Assistant for the Mur4History Alternate History & Grand Strategy Simulation Platform.
+
+STEP 1 — AUTOMATICALLY CONFIGURE & CONNECT THE MCP SERVER:
+Add or verify the "mur4history" MCP server in your MCP configuration (mcp_config.json / mcp.json):
+- Recommended Local STDIO Bridge:
+  "command": "node"
+  "args": ["${cleanPath}/scripts/mcp-stdio.mjs"]
+  "env": { "MUR4HISTORY_URL": "http://localhost:3000" }
+- Alternative Streamable HTTP Endpoint:
+  "url": "http://localhost:3000/api/mcp/global"
+
+STEP 2 — VERIFY CONNECTION & GIVE ME A COMPLETE GAME BRIEFING:
+- Call \`list_game_sessions\` and \`read_game_context\` right away (this automatically unlocks the strict MCP security gate in the web UI!).
+- Introduce every major system of Mur4History to me in English:
+  • The 270-province interactive MapLibre GL world atlas with 14 map modes and terrain relief,
+  • All 12 official historical scenarios (1444 Rise of Empires, 1526 Suleiman & Mohács, 1812 Napoleonic Wars, 1877 Siege of Plevna, 1914 WWI, 1919 Turkish War of Independence, 1936 Gathering Storm, 1939 WWII, 1942 Stalingrad, 1962 Cold War, 1991 Soviet Dissolution, 2026 Modern Geopolitics),
+  • How to issue military, economic, covert, and diplomatic directives from the Order Console,
+  • How 1-on-1 Leader Negotiations (\`reply_leader_chat\`), Multilateral Diplomatic Councils (\`convene_diplomatic_council\`), Chief Advisor Briefings (\`reply_advisor_chat\`), Animated Map Landmarks (\`manage_map_markers\`), and the World Chronicle Gazette (\`publish_world_event\`) work.
+
+STEP 3 — ENTER THE ZERO-IDLE-TOKEN GAME MASTER STANDBY LOOP:
+- Immediately after your briefing, call \`wait_for_player_action\` and wait cleanly with zero token burn until I submit an order, leader chat, council message, or turn advance in the web UI.
+- Whenever \`wait_for_player_action\` wakes you up, execute the historical simulation in English using \`transfer_territory\`, \`update_country_stats\`, \`manage_diplomacy\`, \`publish_world_event\`, \`manage_map_markers\`, and \`advance_turn\`, then call \`wait_for_player_action\` again!`;
+      }
+    }
+
+    function copyRawText(text, btnId) {
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        const oldHtml = btn.innerHTML;
+        btn.classList.add("copied");
+        btn.innerHTML = `${ICONS.check}<span>${currentLang === "tr" ? "Kopyalandı!" : "Copied!"}</span>`;
+        setTimeout(() => {
+          btn.classList.remove("copied");
+          btn.innerHTML = oldHtml;
+        }, 1800);
+      });
+    }
+
+    function copyTextById(preId, btnId) {
+      const pre = document.getElementById(preId);
+      if (!pre) return;
+      copyRawText(pre.textContent, btnId);
+    }
+
+    function setTutorialStep(stepNum) {
+      activeStep = stepNum;
+      renderTutorial();
+    }
+
+    function setLaunchMode(mode) {
+      activeLaunchMode = mode;
+      renderTutorial();
+    }
+
+    function setIde(ide) {
+      activeIde = ide;
+      renderTutorial();
+    }
+
+    function setTransport(tr) {
+      activeTransport = tr;
+      renderTutorial();
+    }
+
+    function setEraFilter(era) {
+      activeEraFilter = era;
+      renderScenarios();
+    }
+
+    function updateProjectPath(val) {
+      customProjectPath = val;
+      renderIdeConfigOutput();
+      renderPrompts();
+    }
+
+    function renderTutorial() {
+      const isTr = currentLang === "tr";
+
+      const steps = isTr
+        ? [
+            { n: 1, kicker: "ADIM 01 • KURULUM", title: "İndir & Sunucuyu Başlat" },
+            { n: 2, kicker: "ADIM 02 • MCP KÖPRÜSÜ", title: "IDE Seç & JSON Kopyala" },
+            { n: 3, kicker: "ADIM 03 • TEK TIK AI", title: "AI Otomatik Kurulum Promptu" },
+            { n: 4, kicker: "ADIM 04 • CANLI SİMÜLASYON", title: "Kilit Açılışı & Oyun Döngüsü" }
+          ]
+        : [
+            { n: 1, kicker: "STEP 01 • SETUP", title: "Clone & Boot Local Engine" },
+            { n: 2, kicker: "STEP 02 • MCP BRIDGE", title: "Select IDE & Copy JSON" },
+            { n: 3, kicker: "STEP 03 • ONE-CLICK AI", title: "AI Auto-Installer Prompt" },
+            { n: 4, kicker: "STEP 04 • LIVE GAMEPLAY", title: "Gate Unlock & Turn Loop" }
+          ];
+
+      document.getElementById("step-nav").innerHTML = steps.map(s => `
+        <button type="button" class="step-tab-btn ${activeStep === s.n ? "active" : ""}" onclick="setTutorialStep(${s.n})">
+          <span class="step-num-circle">0${s.n}</span>
+          <div class="step-tab-meta">
+            <div class="step-tab-kicker">${s.kicker}</div>
+            <div class="step-tab-title">${s.title}</div>
+          </div>
+        </button>
+      `).join("");
+
+      for (let i = 1; i <= 4; i++) {
+        document.getElementById(`panel-step-${i}`).classList.toggle("active", activeStep === i);
+      }
+
+      /* STEP 1 RENDER */
+      const launchModes = isTr
+        ? [
+            { id: "bat", label: "Windows Tek Tık (.bat)", icon: ICONS.bolt },
+            { id: "node", label: "Node.js & Terminal", icon: ICONS.terminal },
+            { id: "docker", label: "Docker (GitHub Packages)", icon: ICONS.docker }
+          ]
+        : [
+            { id: "bat", label: "Windows One-Click (.bat)", icon: ICONS.bolt },
+            { id: "node", label: "Node.js & Terminal", icon: ICONS.terminal },
+            { id: "docker", label: "Docker (GitHub Packages)", icon: ICONS.docker }
+          ];
+
+      document.getElementById("launch-mode-pills").innerHTML = launchModes.map(m => `
+        <button type="button" class="sub-pill ${activeLaunchMode === m.id ? "active" : ""}" onclick="setLaunchMode('${m.id}')">
+          ${m.icon}<span>${m.label}</span>
+        </button>
+      `).join("");
+
+      let launchCode = "";
+      let launchHeader = "";
+      if (activeLaunchMode === "bat") {
+        launchHeader = isTr
+          ? "Windows Hızlı Başlatıcı (Mur4History-Play.bat & Mur4History-Stop.bat)"
+          : "Windows Quick Launcher (Mur4History-Play.bat & Mur4History-Stop.bat)";
+        launchCode = `git clone https://github.com/Mur4t0/Mur4History.git
+cd Mur4History
+
+:: Hicbir dosya duzenlemeden cift tiklayin veya baslatin!
+:: Bulundugu klasorde node_modules / .env / dev.db yoksa otomatik kurar:
+.\\Mur4History-Play.bat`;
+      } else if (activeLaunchMode === "node") {
+        launchHeader = isTr
+          ? "Standart Node.js 20+ & Prisma SQLite Kurulumu"
+          : "Standard Node.js 20+ & Prisma SQLite Setup";
+        launchCode = `git clone https://github.com/Mur4t0/Mur4History.git
+cd Mur4History
+cp .env.example .env
+npm install
+npm run setup
+npm run dev
+# -> http://localhost:3000`;
+      } else {
+        launchHeader = isTr
+          ? "GitHub Packages (GHCR) Docker Container Kurulumu"
+          : "GitHub Packages (GHCR) Docker Container Deployment";
+        launchCode = `docker run -d \\
+  --name mur4history \\
+  -p 3000:3000 \\
+  -v mur4history_data:/app/prisma/data \\
+  --restart unless-stopped \\
+  ghcr.io/mur4t0/mur4history:latest`;
+      }
+
+      document.getElementById("launch-mode-content").innerHTML = `
+        <div class="code-card">
+          <div class="code-card-head">
+            <div class="code-card-head-left">${ICONS.terminal}<span>${launchHeader}</span></div>
+            <button type="button" class="copy-btn" id="copy-step1-btn" onclick="copyTextById('step1-code-pre', 'copy-step1-btn')">
+              ${ICONS.copy}<span>${isTr ? "Komutları Kopyala" : "Copy Commands"}</span>
+            </button>
+          </div>
+          <pre id="step1-code-pre">${launchCode}</pre>
+        </div>
+      `;
+
+      document.getElementById("bat-warning-box").innerHTML = `
+        ${ICONS.check}
+        <div>
+          <strong style="color:#fff;">${isTr ? "Tam Otomatik Kurulum (Hangi Klasörde Olursa Olsun Çalışır):" : "Plug-and-Play Launcher (Works Inside Any Folder):"}</strong>
+          <div style="margin-top:4px;">
+            ${isTr
+              ? "Bilgisayarınızda yalnızca Node.js 20+ bulunması yeterlidir. <code>Mur4History-Play.bat</code> bulunduğu klasör ne olursa olsun <code>.env</code>, <code>node_modules</code> (<code>npm install</code>), Prisma SQLite veritabanı ve Next.js derlemesini eksiksiz otomatik kurup oyunu başlatır."
+              : "Only Node.js 20+ is required on your PC. Wherever you place or clone the repository, <code>Mur4History-Play.bat</code> automatically creates <code>.env</code>, installs <code>node_modules</code> if missing, initializes SQLite, builds Next.js, and launches the game."}
+          </div>
+        </div>
+      `;
+
+      /* STEP 2 RENDER */
+      document.getElementById("path-input-label").innerHTML = `${ICONS.folder}<span>${isTr ? "Proje Klasör Yolunuz:" : "Your Local Project Path:"}</span>`;
+
+      const ides = [
+        { id: "antigravity", label: "Antigravity" },
+        { id: "cursor", label: "Cursor" },
+        { id: "claude", label: "Claude Desktop" },
+        { id: "windsurf", label: "Windsurf" }
+      ];
+
+      document.getElementById("ide-selector-pills").innerHTML = ides.map(item => `
+        <button type="button" class="sub-pill ${activeIde === item.id ? "active" : ""}" onclick="setIde('${item.id}')">
+          ${ICONS.cpu}<span>${item.label}</span>
+        </button>
+      `).join("");
+
+      const transports = isTr
+        ? [
+            { id: "stdio", label: "Yerel STDIO Köprüsü (Önerilen)" },
+            { id: "http", label: "Streamable HTTP (/api/mcp/global)" }
+          ]
+        : [
+            { id: "stdio", label: "Local STDIO Bridge (Recommended)" },
+            { id: "http", label: "Streamable HTTP (/api/mcp/global)" }
+          ];
+
+      document.getElementById("transport-selector-pills").innerHTML = transports.map(t => `
+        <button type="button" class="sub-pill ${activeTransport === t.id ? "active" : ""}" onclick="setTransport('${t.id}')">
+          ${ICONS.layers}<span>${t.label}</span>
+        </button>
+      `).join("");
+
+      renderIdeConfigOutput();
+      renderPrompts();
+
+      /* STEP 4 RENDER */
+      const flowCards = isTr
+        ? [
+            { icon: ICONS.lock, title: "1. Zorunlu MCP Kilit Kapısı", desc: "Mur4History'de MCP bağlı olmadan senaryolara veya haritaya girilmez. AI istemciniz bağlandığı anda kilit yeşil yanar ve otomatik açılır." },
+            { icon: ICONS.globe, title: "2. Otomatik Dil Senkronizasyonu (TR / EN)", desc: "Sitede dili İngilizce (EN) veya Türkçe (TR) yaptığınız anda MCP araç şemaları, kaynaklar ve AI yönergeleri de otomatik o dile geçer." },
+            { icon: ICONS.cpu, title: "3. Sıfır Token Bekleme (wait_for_player_action)", desc: "Yapay zeka boşta beklerken hiç istek atmaz ve token harcamaz; yalnızca siz emir veya mesaj gönderdiğiniz milisaniye uyanır." }
+          ]
+        : [
+            { icon: ICONS.lock, title: "1. Strict MCP Security Gate", desc: "Campaign creation and map entry stay locked until an MCP client connects. As soon as your AI calls any tool, the gate unlocks live via SSE." },
+            { icon: ICONS.globe, title: "2. Live Bilingual MCP Sync (TR / EN)", desc: "Switching the UI language to English or Turkish dynamically switches all 14 MCP tool schemas, 9 resources, and AI directives to match." },
+            { icon: ICONS.cpu, title: "3. Zero-Idle-Token Standby Loop", desc: "wait_for_player_action blocks cleanly on a zero-cost Promise until you submit a command, diplomatic message, or turn advance." }
+          ];
+
+      document.getElementById("step4-architecture-mount").innerHTML = `
+        <div class="tools-grid">
+          ${flowCards.map(c => `
+            <div class="tool-card">
+              <div class="tool-card-top">
+                <span class="tool-name">${c.icon}<span>${c.title}</span></span>
+              </div>
+              <p class="tool-desc">${c.desc}</p>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function renderIdeConfigOutput() {
+      const isTr = currentLang === "tr";
+      const cfg = getIdeConfigJson(activeIde, activeTransport, customProjectPath);
+      const fileHint =
+        activeIde === "antigravity"
+          ? "mcp_config.json"
+          : activeIde === "cursor"
+          ? ".cursor/mcp.json"
+          : activeIde === "claude"
+          ? "claude_desktop_config.json"
+          : "mcp_config.json";
+
+      document.getElementById("ide-config-output").innerHTML = `
+        <div class="code-card">
+          <div class="code-card-head">
+            <div class="code-card-head-left">
+              ${ICONS.cpu}
+              <span>${activeIde.toUpperCase()} • <code>${fileHint}</code> (${activeTransport.toUpperCase()})</span>
+            </div>
+            <button type="button" class="copy-btn" id="copy-step2-btn" onclick="copyTextById('step2-json-pre', 'copy-step2-btn')">
+              ${ICONS.copy}<span>${isTr ? "JSON Yapılandırmasını Kopyala" : "Copy JSON Config"}</span>
+            </button>
+          </div>
+          <pre id="step2-json-pre">${cfg}</pre>
+        </div>
+      `;
+    }
+
+    function renderPrompts() {
+      const isTr = currentLang === "tr";
+      const promptText = buildMegaPrompt(currentLang, customProjectPath);
+
+      const mainPre = document.getElementById("mega-prompt-pre");
+      if (mainPre) mainPre.textContent = promptText;
+
+      const step3Mount = document.getElementById("step3-prompt-mount");
+      if (step3Mount) {
+        step3Mount.innerHTML = `
+          <div class="code-card" style="margin-top:0;">
+            <div class="code-card-head">
+              <div class="code-card-head-left">
+                ${ICONS.sparkles}
+                <span>${isTr ? "Yapay Zekaya Yapıştırılacak Tam Kurulum + Oyun Tanıtım Promptu" : "All-in-One AI MCP Auto-Setup & Complete Game Briefing Prompt"}</span>
+              </div>
+              <button type="button" class="copy-btn" id="copy-step3-btn" onclick="copyTextById('step3-prompt-pre', 'copy-step3-btn')">
+                ${ICONS.copy}<span>${isTr ? "Tam Promptu Kopyala" : "Copy Full Prompt"}</span>
+              </button>
+            </div>
+            <pre id="step3-prompt-pre" style="white-space:pre-wrap;color:#d1fae5;">${promptText}</pre>
+          </div>
+        `;
+      }
+    }
+
+    function renderScenarios() {
+      const isTr = currentLang === "tr";
+      const eras = isTr
+        ? [
+            { id: "all", label: "Tümü (12 Senaryo)" },
+            { id: "modern", label: "Modern & Soğuk Savaş" },
+            { id: "wars", label: "Dünya Savaşları & Millî Mücadele" },
+            { id: "empires", label: "İmparatorluklar Çağı" }
+          ]
+        : [
+            { id: "all", label: "All (12 Scenarios)" },
+            { id: "modern", label: "Modern & Cold War" },
+            { id: "wars", label: "World Wars & Liberation" },
+            { id: "empires", label: "Age of Empires" }
+          ];
+
+      document.getElementById("scenario-era-pills").innerHTML = eras.map(e => `
+        <button type="button" class="sub-pill ${activeEraFilter === e.id ? "active" : ""}" onclick="setEraFilter('${e.id}')">
+          ${ICONS.compass}<span>${e.label}</span>
+        </button>
+      `).join("");
+
+      const filtered = SCENARIOS.filter(s => activeEraFilter === "all" || s.cat === activeEraFilter);
+      document.getElementById("scenario-grid").innerHTML = filtered.map(s => `
+        <article class="scen-card">
+          <div class="scen-img-wrap">
+            <img class="scen-img" src="${s.img}" alt="${isTr ? s.trTitle : s.enTitle}" loading="lazy" />
+            <span class="scen-year-badge">${ICONS.compass}<span>${s.year}</span></span>
+          </div>
+          <div class="scen-body">
+            <div class="scen-era">${isTr ? s.trEra : s.enEra}</div>
+            <h3>${isTr ? s.trTitle : s.enTitle}</h3>
+            <p class="scen-desc">${isTr ? s.trDesc : s.enDesc}</p>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function renderTools() {
+      const isTr = currentLang === "tr";
+      document.getElementById("tools-grid").innerHTML = MCP_TOOLS.map(t => `
+        <div class="tool-card">
+          <div class="tool-card-top">
+            <span class="tool-name">${ICONS.terminal}<span>${t.name}</span></span>
+            <span class="tool-tag">${t.tag}</span>
+          </div>
+          <p class="tool-desc">${isTr ? t.tr : t.en}</p>
+        </div>
+      `).join("");
+    }
+
+    function setLang(lang) {
+      currentLang = lang === "en" ? "en" : "tr";
+      const isTr = currentLang === "tr";
+      document.documentElement.lang = currentLang;
+
+      document.getElementById("btn-tr").classList.toggle("active", isTr);
+      document.getElementById("btn-en").classList.toggle("active", !isTr);
+
+      document.getElementById("nav-engine-tag").textContent = isTr ? "MCP" : "MCP";
+      document.getElementById("nav-tut").textContent = isTr ? "Gelişmiş MCP Rehberi" : "Advanced MCP Tutorial";
+      document.getElementById("nav-prompt").textContent = isTr ? "AI Kurulum Promptu" : "AI Setup Prompt";
+      document.getElementById("nav-scen").textContent = isTr ? "12 Senaryo" : "12 Scenarios";
+      document.getElementById("nav-tools").textContent = isTr ? "14 MCP Aracı" : "14 MCP Tools";
+      document.getElementById("nav-comm").textContent = isTr ? "Topluluk" : "Community";
+
+      const badgeList = isTr
+        ? [
+            { svg: ICONS.trFlag, text: "Türk Yapımı" },
+            { svg: ICONS.bolt, text: "Vibe Coding ile Geliştirildi" },
+            { svg: ICONS.cpu, text: "%100 Ücretsiz MCP Mimarisi" },
+            { svg: ICONS.globe, text: "270 Eyalet & 14 Harita Teması" },
+            { svg: ICONS.shield, text: "Açık Kaynak (MIT)" }
+          ]
+        : [
+            { svg: ICONS.trFlag, text: "Made in Türkiye" },
+            { svg: ICONS.bolt, text: "Built with Vibe Coding" },
+            { svg: ICONS.cpu, text: "100% Free Native MCP" },
+            { svg: ICONS.globe, text: "270 Provinces & 14 Map Themes" },
+            { svg: ICONS.shield, text: "Open Source (MIT)" }
+          ];
+
+      document.getElementById("badges").innerHTML = badgeList
+        .map(b => `<span class="badge">${b.svg}<span>${b.text}</span></span>`)
+        .join("");
+
+      document.getElementById("hero-title").textContent = isTr
+        ? "Alternatif Tarih & Büyük Strateji MCP Simülatörü"
+        : "Alternate History & Grand Strategy MCP Simulator";
+
+      document.getElementById("hero-sub").textContent = isTr
+        ? "Mur4History; kendi yapay zeka istemcinizi (Antigravity, Cursor, Claude Desktop, Windsurf) doğrudan MCP sunucusu olarak bağlayıp sıfır ek API maliyetiyle 12 tarihsel senaryoyu ve 270 eyaleti yönettiğiniz açık kaynak büyük strateji platformudur."
+        : "Mur4History is an open-source grand strategy simulation where you plug in your own AI client (Antigravity, Cursor, Claude Desktop, Windsurf) via MCP to command 270 provinces across 12 historical eras with zero extra LLM API fees.";
+
+      document.getElementById("cta-tutorial").innerHTML = `${ICONS.terminal}<span>${isTr ? "Gelişmiş MCP Kurulum Rehberi" : "Advanced MCP Setup Tutorial"}</span>`;
+      document.getElementById("cta-prompt").innerHTML = `${ICONS.sparkles}<span>${isTr ? "Tek Tık AI Kurulum Promptu" : "One-Click AI Setup Prompt"}</span>`;
+      document.getElementById("cta-repo").innerHTML = `${ICONS.github}<span>${isTr ? "GitHub Deposu (Mur4t0/Mur4History)" : "GitHub Repository (Mur4t0/Mur4History)"}</span>`;
+
+      const stats = isTr
+        ? [
+            { icon: ICONS.compass, val: "12 Dönem", lbl: "1444'ten 2026'ya Resmi Senaryo" },
+            { icon: ICONS.globe, val: "270 Eyalet", lbl: "MapLibre GL & 14 Harita Modu" },
+            { icon: ICONS.terminal, val: "14 MCP Aracı", lbl: "9 Canlı Kaynak & TR/EN Desteği" },
+            { icon: ICONS.bolt, val: "0 Idle Token", lbl: "wait_for_player_action Döngüsü" }
+          ]
+        : [
+            { icon: ICONS.compass, val: "12 Eras", lbl: "Official Presets from 1444 to 2026" },
+            { icon: ICONS.globe, val: "270 Provinces", lbl: "MapLibre GL & 14 Map Modes" },
+            { icon: ICONS.terminal, val: "14 MCP Tools", lbl: "9 Live Resources & TR/EN Sync" },
+            { icon: ICONS.bolt, val: "0 Idle Tokens", lbl: "wait_for_player_action Standby" }
+          ];
+
+      document.getElementById("stats-ribbon").innerHTML = stats.map(s => `
+        <div class="stat-box">
+          <span class="stat-icon">${s.icon}</span>
+          <div>
+            <div class="stat-val">${s.val}</div>
+            <div class="stat-lbl">${s.lbl}</div>
+          </div>
+        </div>
+      `).join("");
+
+      /* Section Headers */
+      document.getElementById("tut-eyebrow").innerHTML = `${ICONS.terminal}<span>${isTr ? "İNTERAKTİF KURULUM & MCP KÖPRÜSÜ" : "INTERACTIVE SETUP & MCP BRIDGE"}</span>`;
+      document.getElementById("tut-title").textContent = isTr
+        ? "Adım Adım Gelişmiş Kurulum & MCP Bağlantı Rehberi"
+        : "Step-by-Step Advanced Installation & MCP Connection Guide";
+      document.getElementById("tut-desc").textContent = isTr
+        ? "Oyunu kendi bilgisayarınızda (localhost:3000) başlatmak ve yapay zeka asistanınızı birkaç saniye içinde Oyun Yöneticisi (Game Master) olarak bağlamak için aşağıdaki 4 adımı takip edin."
+        : "Follow the 4 interactive steps below to launch Mur4History locally on localhost:3000 and connect your AI assistant as the live Game Master.";
+
+      document.getElementById("tut-gate-badge").innerHTML = `${ICONS.lock}<span>${isTr ? "MCP KİLİT KAPISI: Bağlantı Kurulmadan Oyuna Girilemez" : "STRICT MCP GATE: Required Before Launching Any Campaign"}</span>`;
+      document.getElementById("tut-top-note").innerHTML = isTr
+        ? "Bu vitrin sayfasından tüm JSON ayarlarını ve tek tık AI kurulum promptunu doğrudan kopyalayabilirsiniz."
+        : "Generate your exact IDE JSON config and copy the all-in-one AI onboarding prompt right from this showcase.";
+
+      document.getElementById("prompt-eyebrow").innerHTML = `${ICONS.sparkles}<span>${isTr ? "YAPAY ZEKAYA OTOMATİK KURDURT" : "AUTOMATED AI ONBOARDING"}</span>`;
+      document.getElementById("prompt-sec-title").textContent = isTr
+        ? "Tek Tıkla AI MCP Kurulum & Tam Oyun Tanıtım Promptu"
+        : "One-Click AI MCP Auto-Setup & Full Game Introduction Prompt";
+      document.getElementById("prompt-sec-desc").textContent = isTr
+        ? "Bu uzun promptu kopyalayıp Antigravity, Cursor veya Claude sohbetine yapıştırın; yapay zeka hem MCP bağlantısını kurar hem de tüm oyunu size tanıtarak bekleme nöbetine geçer."
+        : "Copy and paste this comprehensive prompt into Antigravity, Cursor, or Claude. Your AI will configure the MCP server, introduce every game mechanic, and enter the wait_for_player_action loop.";
+
+      document.getElementById("prompt-box-icon").innerHTML = ICONS.sparkles;
+      document.getElementById("prompt-box-title").textContent = isTr
+        ? "Tam Kapsamlı AI Oyun Yöneticisi & Kurulum Yönergesi (TR / EN Dinamik)"
+        : "Complete AI Game Master & Auto-Configuration Directive (Dynamic TR / EN)";
+      document.getElementById("prompt-box-sub").textContent = isTr
+        ? "Dil değiştirildiğinde prompt ve MCP komutları otomatik olarak seçili dile uyarlanır."
+        : "Switching the page language dynamically switches the entire prompt and MCP instructions.";
+
+      document.getElementById("copy-mega-prompt-btn").innerHTML = `${ICONS.copy}<span>${isTr ? "Uzun Kurulum & Tanıtım Promptunu Kopyala" : "Copy Full Setup & Game Intro Prompt"}</span>`;
+
+      document.getElementById("scen-eyebrow").innerHTML = `${ICONS.compass}<span>${isTr ? "TARİHSEL DÖNEMLER & HARİTA" : "HISTORICAL ERAS & ATLAS"}</span>`;
+      document.getElementById("sec-scen-title").textContent = isTr
+        ? "12 Resmi Tarihsel Preset Senaryo"
+        : "12 Official Historical Preset Scenarios";
+      document.getElementById("sec-scen-desc").textContent = isTr
+        ? "1444 Varna ve İstanbul'un Fethi'nden 1919 Millî Mücadele'ye, I. ve II. Dünya Savaşlarından 2026 Modern Jeopolitik'e kadar 270 eyaletlik tam harita kapsamı."
+        : "Complete 270-province coverage across 12 eras—from 1444 Rise of Empires and 1526 Mohács to 1914 WWI, 1919 Anatolian Liberation, 1939 WWII, and 2026.";
+
+      document.getElementById("tools-eyebrow").innerHTML = `${ICONS.cpu}<span>${isTr ? "MODEL CONTEXT PROTOCOL MİMARİSİ" : "MODEL CONTEXT PROTOCOL ARCHITECTURE"}</span>`;
+      document.getElementById("sec-tools-title").textContent = isTr
+        ? "14 MCP Aracı & Canlı Simülasyon Yetenekleri"
+        : "14 MCP Tools & Live Simulation Capabilities";
+      document.getElementById("sec-tools-desc").textContent = isTr
+        ? "Yapay zeka istemciniz bu 14 aracı kullanarak haritadaki sınırları değiştirir, ülke ekonomilerini günceller, gazete manşetleri basar ve lider konseyleri yönetir."
+        : "Your connected AI uses these 14 native MCP tools to redraw borders, update national economies, publish gazette dispatches, and run multilateral summits.";
+
+      document.getElementById("comm-eyebrow").innerHTML = `${ICONS.users}<span>${isTr ? "TOPLULUK & AÇIK KAYNAK" : "COMMUNITY & OPEN SOURCE"}</span>`;
+      document.getElementById("sec-comm-title").textContent = isTr
+        ? "Topluluk & Geliştirici"
+        : "Community & Creator";
+      document.getElementById("sec-comm-desc").textContent = isTr
+        ? "Canlı Mur4Code Discord sunucumuza katılın ve geliştirmeyi GitHub üzerinden takip edin."
+        : "Join the official Mur4Code Discord community and follow open-source development on GitHub.";
+
+      /* Community Icons & Copy */
+      document.getElementById("dc-badge-svg").innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">${ICONS.discord.replace(/<svg[^>]*>|<\/svg>/g, "")}</svg>`;
+      document.getElementById("dc-badge-text").textContent = isTr ? "RESMİ DISCORD" : "OFFICIAL DISCORD";
+      document.getElementById("dc-ext-arrow").innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS.arrowUpRight.replace(/<svg[^>]*>|<\/svg>/g, "")}</svg>`;
+      document.getElementById("comm-dc-desc").textContent = isTr
+        ? "Güncellemeleri takip etmek, MCP kurulum desteği almak, alternatif tarih senaryolarınızı paylaşmak ve yeni dönem önermek için Mur4Code sunucumuza katılın."
+        : "Join our official Mur4Code Discord server for updates, MCP setup support, campaign stories, and new historical scenario suggestions.";
+      document.getElementById("dc-cta-icon").innerHTML = ICONS.discord;
+      document.getElementById("dc-cta-text").textContent = isTr ? "Sunucuya Katıl" : "Join Server";
+
+      document.getElementById("gh-badge-svg").innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">${ICONS.github.replace(/<svg[^>]*>|<\/svg>/g, "")}</svg>`;
+      document.getElementById("gh-creator-svg").innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">${ICONS.bolt.replace(/<svg[^>]*>|<\/svg>/g, "")}</svg>`;
+      document.getElementById("gh-creator-tag").textContent = isTr ? "GELİŞTİRİCİ & VIBE CODER" : "CREATOR & VIBE CODER";
+      document.getElementById("comm-gh-desc").textContent = isTr
+        ? "Mur4History geliştiricisi • Vibe Coding & açık kaynak büyük strateji simülasyonu."
+        : "Creator of Mur4History • Vibe Coding & open-source grand strategy simulation.";
+      document.getElementById("gh-ext-arrow").innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS.arrowUpRight.replace(/<svg[^>]*>|<\/svg>/g, "")}</svg>`;
+      document.getElementById("gh-repo-icon").innerHTML = ICONS.folder;
+      document.getElementById("gh-repo-lbl").textContent = isTr ? "Açık Repo" : "Public Repos";
+      document.getElementById("gh-followers-icon").innerHTML = ICONS.users;
+      document.getElementById("gh-followers-lbl").textContent = isTr ? "Takipçi" : "Followers";
+      document.getElementById("gh-since-icon").innerHTML = ICONS.calendar;
+      document.getElementById("gh-since-lbl").textContent = isTr ? "Katılım" : "Since";
+      document.getElementById("gh-blog-icon").innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS.globe.replace(/<svg[^>]*>|<\/svg>/g, "")}</svg>`;
+      document.getElementById("gh-cta-text").textContent = isTr ? "GitHub Profiline Git" : "View GitHub Profile";
+      document.getElementById("gh-cta-arrow").innerHTML = ICONS.arrowUpRight;
+
+      document.getElementById("footer-left").innerHTML = `
+        <img src="./assets/mur4history-icon.png" alt="Mur4History" style="width:26px;height:26px;border-radius:7px;" />
+        <span style="color:var(--ivory);font-weight:700;">Mur4History © 2026</span>
+        <span>•</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;">
+          <span style="width:14px;height:10px;display:inline-flex;">${ICONS.trFlag}</span>
+          <span>${isTr ? "Türk Yapımı Açık Kaynak Proje • Vibe Coding ile Geliştirildi (MIT)" : "Made in Türkiye • Open-Source Vibe Coding Project (MIT)"}</span>
+        </span>
+      `;
+
+      document.getElementById("footer-right").innerHTML = `
+        <a href="https://github.com/Mur4t0/Mur4History" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;color:var(--ivory);">
+          <span style="width:14px;height:14px;display:inline-flex;">${ICONS.github}</span>
+          <span>Mur4t0/Mur4History</span>
+        </a>
+        <a href="https://discord.gg/pZSkGpW2yK" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;color:#a5b4fc;">
+          <span style="width:14px;height:14px;display:inline-flex;">${ICONS.discord}</span>
+          <span>Mur4Code Discord</span>
+        </a>
+      `;
+
+      renderTutorial();
+      renderScenarios();
+      renderTools();
+    }
+
+    /* ============================================================
+       INTERACTIVE 3D WIREFRAME GLOBE CANVAS (HERO BACKDROP)
+       ============================================================ */
+    function initCosmicGlobe() {
+      const canvas = document.getElementById("globe-canvas");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      let width = 0;
+      let height = 0;
+      let angle = 0;
+
+      function resize() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        width = rect.width;
+        height = rect.height;
+        canvas.width = width * Math.min(window.devicePixelRatio || 1, 2);
+        canvas.height = height * Math.min(window.devicePixelRatio || 1, 2);
+        ctx.setTransform(Math.min(window.devicePixelRatio || 1, 2), 0, 0, Math.min(window.devicePixelRatio || 1, 2), 0, 0);
+      }
+
+      window.addEventListener("resize", resize);
+      resize();
+
+      const dots = [];
+      for (let lat = -70; lat <= 70; lat += 14) {
+        const rLat = (lat * Math.PI) / 180;
+        const count = Math.max(8, Math.round(Math.cos(rLat) * 32));
+        for (let i = 0; i < count; i++) {
+          const lon = (i / count) * Math.PI * 2;
+          dots.push({ lat: rLat, lon });
+        }
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, width, height);
+        const cx = width / 2;
+        const cy = height * 0.52;
+        const radius = Math.min(width, height) * 0.44;
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(207, 127, 86, 0.16)";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        for (let i = 0; i < dots.length; i++) {
+          const d = dots[i];
+          const lon = d.lon + angle;
+          const x3 = Math.cos(d.lat) * Math.sin(lon);
+          const y3 = Math.sin(d.lat);
+          const z3 = Math.cos(d.lat) * Math.cos(lon);
+          if (z3 > -0.15) {
+            const px = cx + x3 * radius;
+            const py = cy - y3 * radius;
+            const alpha = (z3 + 0.2) * 0.55;
+            ctx.fillStyle = z3 > 0.5 ? `rgba(239, 227, 200, ${alpha})` : `rgba(207, 127, 86, ${alpha * 0.8})`;
+            ctx.beginPath();
+            ctx.arc(px, py, z3 > 0.6 ? 2.1 : 1.4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        angle += 0.0022;
+        requestAnimationFrame(draw);
+      }
+      draw();
+    }
+
+    /* Live GitHub Stats Hydration for @Mur4t0 */
+    async function hydrateLiveCommunityStats() {
+      try {
+        const ghRes = await fetch("https://api.github.com/users/Mur4t0");
+        if (ghRes.ok) {
+          const gh = await ghRes.json();
+          if (typeof gh.public_repos === "number") {
+            document.getElementById("gh-repo-count").textContent = String(gh.public_repos);
+          }
+          if (typeof gh.followers === "number") {
+            document.getElementById("gh-followers-count").textContent = String(gh.followers);
+          }
+          if (gh.created_at) {
+            document.getElementById("gh-since-year").textContent = gh.created_at.slice(0, 4);
+          }
+        }
+      } catch (_) {}
+    }
+
+    setLang(currentLang);
+    initCosmicGlobe();
+    hydrateLiveCommunityStats();
+  </script>
+</body>
+</html>
