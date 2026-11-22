@@ -1,0 +1,273 @@
+@import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+@theme inline {
+  --color-background: #070a0f;
+  --color-foreground: #e8ecf4;
+  --color-card: #0e131b;
+  --color-card-foreground: #e8ecf4;
+  --color-popover: #111824;
+  --color-popover-foreground: #e8ecf4;
+  --color-primary: #d4a353;
+  --color-primary-foreground: #090c12;
+  --color-secondary: #182130;
+  --color-secondary-foreground: #d8e0ed;
+  --color-muted: #141c29;
+  --color-muted-foreground: #8b9bb4;
+  --color-accent: #1d293d;
+  --color-accent-foreground: #f2f5fa;
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #fef2f2;
+  --color-border: #232f42;
+  --color-input: #1d2738;
+  --color-ring: #d4a353;
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-serif: "Georgia", "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, monospace;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+html,
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* Custom Grand Strategy Atlas Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #090d14;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #253348;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d4a353;
+}
+
+/* MapLibre popup & attribution cleanup for dark grand-strategy theme */
+.maplibregl-popup-content {
+  background: rgba(11, 16, 24, 0.96) !important;
+  color: #e8ecf4 !important;
+  border: 1px solid #2b3a52 !important;
+  border-radius: 8px !important;
+  padding: 10px 12px !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65) !important;
+}
+
+.maplibregl-popup-tip {
+  border-top-color: rgba(11, 16, 24, 0.96) !important;
+  border-bottom-color: rgba(11, 16, 24, 0.96) !important;
+}
+
+.maplibregl-ctrl-attrib {
+  background: rgba(9, 13, 20, 0.72) !important;
+  color: #6b7a90 !important;
+  font-size: 10px !important;
+}
+
+.maplibregl-ctrl-attrib a {
+  color: #9aa9c0 !important;
+}
+
+@keyframes territory-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(212, 163, 83, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(212, 163, 83, 0);
+  }
+}
+
+.animate-territory-pulse {
+  animation: territory-pulse 2s infinite;
+}
+
+/* Animated Pulsing Map Beacons / Facilities */
+@keyframes pax-beacon-ripple {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(2.4);
+    opacity: 0.16;
+  }
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+@keyframes pax-beacon-burst {
+  0% {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(3.4);
+    opacity: 0.45;
+  }
+  100% {
+    transform: scale(4.2);
+    opacity: 0;
+  }
+}
+
+@keyframes pax-beacon-float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-2.5px);
+  }
+}
+
+.pax-map-marker-root {
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pax-map-marker-root:hover {
+  z-index: 40 !important;
+}
+
+.pax-beacon-stage {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 180ms ease;
+}
+
+.pax-map-marker-root:hover .pax-beacon-stage {
+  transform: scale(1.16);
+}
+
+.pax-beacon-ring {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  width: 38px;
+  height: 38px;
+  border-radius: 9999px;
+  border: 2px solid var(--beacon-color, #f59e0b);
+  animation: pax-beacon-ripple 2.1s cubic-bezier(0, 0.2, 0.4, 1) infinite;
+  pointer-events: none;
+}
+
+.pax-beacon-ring-secondary {
+  animation-delay: 0.85s;
+}
+
+.pax-beacon-ring-flash {
+  top: -7px;
+  left: -7px;
+  width: 42px;
+  height: 42px;
+  border: 2.5px solid #fef08a;
+  animation: pax-beacon-burst 1.2s ease-out infinite;
+}
+
+.pax-beacon-core {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  background: rgba(9, 14, 24, 0.94);
+  border: 2px solid var(--beacon-color, #f59e0b);
+  box-shadow: 0 0 14px var(--beacon-glow, rgba(245, 158, 11, 0.55)),
+    0 4px 12px rgba(0, 0, 0, 0.75);
+  color: var(--beacon-color, #f59e0b);
+  animation: pax-beacon-float 3.2s ease-in-out infinite;
+}
+
+.pax-beacon-label {
+  position: absolute;
+  top: 31px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: rgba(7, 11, 19, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #f1f5f9;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+}
+
+/* Modern Community & Developer Card Animations */
+@keyframes mur4-orbit-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes mur4-shimmer-sweep {
+  0% {
+    transform: translateX(-140%) skewX(-18deg);
+  }
+  55%, 100% {
+    transform: translateX(240%) skewX(-18deg);
+  }
+}
+
+@keyframes mur4-float-glow {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(1) translateY(0px);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.06) translateY(-3px);
+  }
+}
+
+.animate-mur4-orbit {
+  animation: mur4-orbit-spin 8s linear infinite;
+}
+
+.animate-mur4-shimmer {
+  animation: mur4-shimmer-sweep 5.5s ease-in-out infinite;
+}
+
+.animate-mur4-glow {
+  animation: mur4-float-glow 4.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-mur4-orbit,
+  .animate-mur4-shimmer,
+  .animate-mur4-glow {
+    animation: none;
+  }
+}

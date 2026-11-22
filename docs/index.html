@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mur4History • MCP Alternatif Tarih & Büyük Strateji</title>
+  <link rel="icon" type="image/png" href="./assets/mur4history-icon.png" />
+  <style>
+    :root {
+      --bg: #03050a;
+      --surface: #0a0f1a;
+      --surface-2: #101829;
+      --border: rgba(255, 255, 255, 0.1);
+      --ivory: #efe3c8;
+      --copper: #cf7f56;
+      --text: #e6ecf8;
+      --muted: #93a1bc;
+      --emerald: #34d399;
+      --amber: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(ellipse 80% 45% at 50% 0%, rgba(207, 127, 86, 0.12), transparent),
+        radial-gradient(ellipse 60% 40% at 85% 20%, rgba(56, 189, 248, 0.08), transparent),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    a { color: inherit; text-decoration: none; }
+    .container { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      backdrop-filter: blur(12px);
+      background: rgba(4, 6, 12, 0.85);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 62px;
+      gap: 16px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-family: Georgia, serif; font-weight: 700; font-size: 18px; }
+    .brand img { width: 32px; height: 32px; border-radius: 8px; }
+    .brand .m4 { color: var(--ivory); }
+    .brand .hist { color: var(--copper); }
+    .nav-right { display: flex; align-items: center; gap: 10px; }
+    .lang-pill {
+      display: inline-flex;
+      padding: 2px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .lang-btn {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 5px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .lang-btn.active {
+      background: linear-gradient(135deg, #d48a60, #a85a38);
+      color: #090b10;
+    }
+    .hero {
+      text-align: center;
+      padding: 56px 16px 44px;
+    }
+    .hero-logo {
+      height: 148px;
+      width: auto;
+      max-width: 90%;
+      margin-bottom: 14px;
+      filter: drop-shadow(0 6px 28px rgba(207, 127, 86, 0.2));
+    }
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(16, 24, 41, 0.85);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ivory);
+    }
+    h1 {
+      font-size: clamp(2rem, 4.4vw, 3.2rem);
+      margin: 0 0 12px;
+      letter-spacing: -0.02em;
+    }
+    .subtitle {
+      max-width: 720px;
+      margin: 0 auto 28px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 22px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); border-color: rgba(255, 255, 255, 0.3); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--ivory), var(--copper));
+      color: #0b0d14;
+      border-color: transparent;
+    }
+    .notice-box {
+      margin: 28px auto 0;
+      max-width: 820px;
+      border: 1px solid rgba(251, 191, 36, 0.35);
+      background: rgba(251, 191, 36, 0.08);
+      border-radius: 14px;
+      padding: 14px 18px;
+      font-size: 13px;
+      color: #fde68a;
+      text-align: left;
+    }
+    section { padding: 34px 0; }
+    .sec-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 18px;
+      color: var(--ivory);
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 16px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .card-pad { padding: 18px; }
+    .scen-img {
+      width: 100%;
+      aspect-ratio: 16/10;
+      object-fit: cover;
+      display: block;
+    }
+    .card h3 { margin: 0 0 6px; font-size: 16px; color: #fff; }
+    .card p { margin: 0; font-size: 13px; color: var(--muted); }
+    pre {
+      background: #060911;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      overflow-x: auto;
+      font-size: 12.5px;
+      color: #a7f3d0;
+      margin: 10px 0 0;
+    }
+    footer {
+      margin-top: 32px;
+      border-top: 1px solid var(--border);
+      padding: 24px 0 36px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+      gap: 18px;
+      margin-bottom: 36px;
+    }
+    .comm-card {
+      position: relative;
+      overflow: hidden;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      padding: 20px;
+      background: linear-gradient(145deg, rgba(16, 24, 42, 0.94), rgba(8, 12, 22, 0.96));
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.45);
+      transition: transform 0.25s ease, border-color 0.25s ease;
+    }
+    .comm-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(207, 127, 86, 0.55);
+    }
+    .comm-top {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .comm-avatar {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--copper);
+      box-shadow: 0 0 20px rgba(207, 127, 86, 0.35);
+    }
+    .comm-icon {
+      width: 60px;
+      height: 60px;
+      border-radius: 16px;
+      object-fit: cover;
+      border: 2px solid #5865F2;
+      box-shadow: 0 0 20px rgba(88, 101, 242, 0.35);
+    }
+    .nav-pill-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ivory);
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .nav-pill-link:hover {
+      border-color: var(--copper);
+      transform: translateY(-1px);
+    }
+    .nav-pill-link img {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container nav">
+      <a class="brand" href="#top">
+        <img src="./assets/mur4history-icon.png" alt="Mur4History" />
+        <span><span class="m4">Mur4</span><span class="hist">History</span></span>
+      </a>
+      <div class="nav-right">
+        <a class="nav-pill-link" href="https://discord.gg/pZSkGpW2yK" target="_blank" rel="noopener noreferrer">
+          <span>💬 Discord</span>
+        </a>
+        <a class="nav-pill-link" href="https://github.com/Mur4t0" target="_blank" rel="noopener noreferrer">
+          <img src="./assets/mur4t0-avatar.png" alt="Mur4t0" />
+          <span>@Mur4t0</span>
+        </a>
+        <div class="lang-pill" role="group" aria-label="Language">
+          <button id="btn-tr" class="lang-btn" type="button" onclick="setLang('tr')">TR</button>
+          <button id="btn-en" class="lang-btn" type="button" onclick="setLang('en')">EN</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main id="top" class="container">
+    <section class="hero">
+      <img class="hero-logo" src="./assets/mur4history-logo.png" alt="Mur4History" />
+      <div class="badges" id="badges"></div>
+      <h1 id="hero-title"></h1>
+      <p class="subtitle" id="hero-sub"></p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#quickstart" id="cta-start"></a>
+        <a class="btn" href="#scenarios" id="cta-scenarios"></a>
+      </div>
+      <div class="notice-box" id="pages-note"></div>
+    </section>
+
+    <section id="scenarios">
+      <h2 class="sec-title" id="sec-scen-title"></h2>
+      <div class="grid-4" id="scenario-grid"></div>
+    </section>
+
+    <section id="features">
+      <h2 class="sec-title" id="sec-feat-title"></h2>
+      <div class="grid-3" id="feature-grid"></div>
+    </section>
+
+    <section id="quickstart">
+      <h2 class="sec-title" id="sec-run-title"></h2>
+      <div class="grid-3">
+        <div class="card card-pad">
+          <h3 id="qs-local-title"></h3>
+          <p id="qs-local-desc"></p>
+          <pre>git clone &lt;REPO_URL&gt;
+cd Mur4History
+cp .env.example .env
+npm install
+npm run setup
+npm run dev</pre>
+        </div>
+        <div class="card card-pad">
+          <h3 id="qs-docker-title"></h3>
+          <p id="qs-docker-desc"></p>
+          <pre>docker run -d \
+  --name mur4history \
+  -p 3000:3000 \
+  -v mur4_data:/app/prisma/data \
+  ghcr.io/&lt;USERNAME&gt;/mur4history:latest</pre>
+        </div>
+        <div class="card card-pad">
+          <h3 id="qs-mcp-title"></h3>
+          <p id="qs-mcp-desc"></p>
+          <pre>{
+  "mcpServers": {
+    "mur4history": {
+      "url": "http://localhost:3000/api/mcp/&lt;SESSION_ID&gt;"
+    }
+  }
+}</pre>
+        </div>
+      </div>
+    </section>
+    <section id="community">
+      <h2 class="sec-title" id="sec-comm-title">Topluluk &amp; Geliştirici</h2>
+      <div class="grid-2">
+        <a class="comm-card" href="https://discord.gg/pZSkGpW2yK" target="_blank" rel="noopener noreferrer">
+          <div class="comm-top">
+            <img class="comm-icon" src="./assets/mur4code-icon.png" alt="Mur4Code Discord" />
+            <div>
+              <div style="font-size:11px;font-weight:700;color:#818cf8;text-transform:uppercase;">OFFICIAL DISCORD</div>
+              <h3 style="margin:2px 0;font-size:20px;color:#fff;">Mur4Code</h3>
+              <div style="font-size:12px;color:#34d399;">● discord.gg/pZSkGpW2yK</div>
+            </div>
+          </div>
+          <p id="comm-dc-desc" style="margin:14px 0 0;font-size:13px;color:var(--muted);">
+            Güncellemeleri takip etmek, MCP kurulum desteği almak ve yeni tarihsel senaryo önermek için Discord sunucumuza katılın.
+          </p>
+        </a>
+
+        <a class="comm-card" href="https://github.com/Mur4t0" target="_blank" rel="noopener noreferrer">
+          <div class="comm-top">
+            <img class="comm-avatar" src="./assets/mur4t0-avatar.png" alt="Mur4t (@Mur4t0)" />
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;">⚡ CREATOR &amp; VIBE CODER</div>
+              <h3 style="margin:2px 0;font-size:20px;color:var(--ivory);">Mur4t <span style="font-size:13px;color:var(--copper);font-family:monospace;">@Mur4t0</span></h3>
+              <div style="font-size:12px;color:var(--muted);">github.com/Mur4t0 • mur4offsets.github.io</div>
+            </div>
+          </div>
+          <p id="comm-gh-desc" style="margin:14px 0 0;font-size:13px;color:var(--muted);">
+            Mur4History geliştiricisi • Vibe Coding &amp; açık kaynak büyük strateji simülasyonu. GitHub profilini ziyaret edin ve projeye yıldız verin.
+          </p>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container" id="footer-text"></div>
+  </footer>
+
+  <script>
+    const COPY = {
+      tr: {
+        badges: [
+          "🇹🇷 Türk Yapımı",
+          "⚡ Vibe Coding ile Geliştirildi",
+          "🤖 %100 Ücretsiz MCP Mimarisi",
+          "🗺️ 270 Eyalet & 14 Harita Teması",
+          "📄 Açık Kaynak (MIT)"
+        ],
+        heroTitle: "Alternatif Tarih & Büyük Strateji MCP Simülatörü",
+        heroSub: "Mur4History; kendi yapay zeka istemcinizi (Antigravity, Cursor, Claude Desktop) doğrudan MCP sunucusu olarak bağlayıp sıfır ek API/token ücretiyle dünyayı yönettiğiniz, Türk yapımı ve Vibe Coding ile geliştirilmiş açık kaynak strateji oyunudur.",
+        ctaStart: "Kurulum & GitHub Packages",
+        ctaScenarios: "Resmi Senaryolar",
+        pagesNote: "<strong>GitHub Pages Bilgilendirmesi:</strong> GitHub Pages yalnızca statik HTML/CSS/JS yayınlar. Mur4History'nin canlı oyun motoru Next.js API rotaları, SQLite (Prisma), gerçek zamanlı SSE ve MCP sunucusunu çalıştırdığı için bu sayfa vitrin/dokümantasyon görevi görür; oyunu oynamak için aşağıdan Docker (GitHub Packages) veya lokal kurulumla <code>localhost:3000</code> üzerinde başlatabilirsiniz.",
+        secScen: "12 Resmi Tarihsel Preset Senaryo",
+        secFeat: "Öne Çıkan Özellikler",
+        secRun: "Hızlı Başlatma & GitHub Packages",
+        secComm: "Topluluk & Geliştirici",
+        commDcDesc: "Güncellemeleri takip etmek, MCP kurulum desteği almak ve yeni tarihsel senaryo önermek için Discord sunucumuza katılın.",
+        commGhDesc: "Mur4History geliştiricisi • Vibe Coding & açık kaynak büyük strateji simülasyonu. GitHub profilini ziyaret edin ve projeye yıldız verin.",
+        qsLocalTitle: "1. Lokal Geliştirme / Windows Başlatıcı",
+        qsLocalDesc: "Node.js ile saniyeler içinde kurun veya Windows'ta çift tıkla Mur4History-Play.bat dosyasını çalıştırın.",
+        qsDockerTitle: "2. GitHub Packages (GHCR Docker)",
+        qsDockerDesc: "GitHub Packages üzerinden derlenen container paketini tek komutla kalıcı veritabanıyla başlatın.",
+        qsMcpTitle: "3. Kendi Yapay Zekanı Bağla (MCP)",
+        qsMcpDesc: "Streamable HTTP veya Legacy SSE uç noktasıyla sıfır idle token tüketen Game Master döngüsünü çalıştırın.",
+        footer: "🇹🇷 Türk Yapımı Açık Kaynak Proje • ⚡ Vibe Coding ile geliştirildi • MIT Lisansı altında paylaşılmaktadır.",
+        scenarios: [
+          { img: "./assets/2026.jpg", title: "2026: Modern Jeopolitik", era: "Çok Kutuplu 21. Yüzyıl • 1 Ay/Tur" },
+          { img: "./assets/1939.jpg", title: "1939: II. Dünya Savaşı", era: "Küresel Topyekûn Savaş • 1 Ay/Tur" },
+          { img: "./assets/1919.jpg", title: "1919: Türk Kurtuluş Savaşı", era: "Millî Mücadele & Anadolu • 1 Ay/Tur" },
+          { img: "./assets/1914.jpg", title: "1914: I. Dünya Savaşı", era: "İtilaf vs İttifak • 1 Ay/Tur" },
+          { img: "./assets/1936.jpg", title: "1936: Fırtına Öncesi", era: "İki Savaş Arası Dönem • 2 Ay/Tur" },
+          { img: "./assets/1942.jpg", title: "1942: Stalingrad & El Alamein", era: "Savaşın Dönüm Noktası • 1 Ay/Tur" },
+          { img: "./assets/1962.jpg", title: "1962: Soğuk Savaş", era: "Nükleer Kutuplaşma • 1 Ay/Tur" },
+          { img: "./assets/1991.jpg", title: "1991: Soğuk Savaş'ın Sonu", era: "SSCB Dağılışı • 1 Ay/Tur" },
+          { img: "./assets/1877.jpg", title: "1877: 93 Harbi & Plevne", era: "İmparatorluklar & Balkanlar • 1 Ay/Tur" },
+          { img: "./assets/1812.jpg", title: "1812: Napolyon Savaşları", era: "Büyük Koalisyon • 2 Ay/Tur" },
+          { img: "./assets/1526.jpg", title: "1526: Kanuni & Mohaç", era: "Osmanlı Zirvesi • 3 Ay/Tur" },
+          { img: "./assets/1444.jpg", title: "1444: Yeni Çağ", era: "Rönesans & İmparatorluklar • 6 Ay/Tur" }
+        ],
+        features: [
+          { title: "Sıfır Token Idle Bekleme (MCP)", desc: "wait_for_player_action süresiz olarak hamle gelene kadar bekler; boşuna token yakmaz." },
+          { title: "270 Eyalet & 14 Harita Görünümü", desc: "MapLibre GL tabanlı Pax Imperial Atlas, kabartma gölgeleme, kavisli ülke etiketleri ve 8 Web Audio fon müziği." },
+          { title: "Animasyonlu Tesis İşaretleri", desc: "AI tarafından yönetilen fabrika, askeri üs, tersane, zirve ve kriz işaretleri doğrudan haritada parlar." },
+          { title: "Lider Sohbetleri & Çok Uluslu Konseyler", desc: "Ülke başkanlarıyla bire bir diplomasi yürütün ya da çok taraflı koalisyon konseyleri toplayın." },
+          { title: "Akıllı Gazete, Arama & Zaman Yolculuğu", desc: "GÜNCEL/ESKİ damgalı haber grupları, anlık arama ve önceki turlara geri sarma." },
+          { title: "İlerleme İndirme & Sürükle-Bırak", desc: "Tarayıcı (IndexedDB) yedekleme ve .mur4history.json kayıt dosyalarını sürükleyip bırakarak anında yükleme." }
+        ]
+      },
+      en: {
+        badges: [
+          "🇹🇷 Made in Türkiye",
+          "⚡ Built with Vibe Coding",
+          "🤖 100% Free Native MCP",
+          "🗺️ 270 Provinces & 14 Map Themes",
+          "📄 Open Source (MIT)"
+        ],
+        heroTitle: "Alternate History & Grand Strategy MCP Simulator",
+        heroSub: "Mur4History is a Turkish-made, open-source grand strategy platform crafted through Vibe Coding. Plug in your own AI client (Antigravity, Cursor, Claude Desktop) via MCP and shape world history with zero server-side LLM API costs.",
+        ctaStart: "Quick Start & GitHub Packages",
+        ctaScenarios: "Official Presets",
+        pagesNote: "<strong>About GitHub Pages:</strong> GitHub Pages only hosts static sites. Because Mur4History's live engine relies on Next.js API routes, SQLite/Prisma, real-time SSE, and an MCP server, this page serves as the official showcase. Launch the playable game locally or via Docker (GitHub Packages) below.",
+        secScen: "12 Official Historical Preset Scenarios",
+        secFeat: "Core Features",
+        secRun: "Quick Start & GitHub Packages",
+        secComm: "Community & Creator",
+        commDcDesc: "Join our official Mur4Code Discord server for updates, MCP setup support, campaign stories, and new scenario suggestions.",
+        commGhDesc: "Creator of Mur4History • Vibe Coding & open-source grand strategy simulation. Visit the GitHub profile and star the repository.",
+        qsLocalTitle: "1. Local Setup / Windows Launcher",
+        qsLocalDesc: "Clone and boot with Node.js in seconds, or run Mur4History-Play.bat on Windows.",
+        qsDockerTitle: "2. GitHub Packages (GHCR Docker)",
+        qsDockerDesc: "Pull and run the prebuilt GitHub Container Package with a persistent SQLite volume.",
+        qsMcpTitle: "3. Connect Your AI Client (MCP)",
+        qsMcpDesc: "Connect via Streamable HTTP or Legacy SSE for indefinite wait standby with zero idle token burn.",
+        footer: "🇹🇷 Built in Türkiye • ⚡ Crafted with Vibe Coding • Released under the MIT License.",
+        scenarios: [
+          { img: "./assets/2026.jpg", title: "2026: Modern Geopolitics", era: "Multipolar 21st Century • 1 Mo/Turn" },
+          { img: "./assets/1939.jpg", title: "1939: World War II", era: "Global Total War • 1 Mo/Turn" },
+          { img: "./assets/1919.jpg", title: "1919: Turkish War of Independence", era: "Anatolian Liberation • 1 Mo/Turn" },
+          { img: "./assets/1914.jpg", title: "1914: World War I", era: "Entente vs Central Powers • 1 Mo/Turn" },
+          { img: "./assets/1936.jpg", title: "1936: Gathering Storm", era: "Interwar Period • 2 Mo/Turn" },
+          { img: "./assets/1942.jpg", title: "1942: Stalingrad & El Alamein", era: "WWII Turning Point • 1 Mo/Turn" },
+          { img: "./assets/1962.jpg", title: "1962: Cold War", era: "Nuclear Brinkmanship • 1 Mo/Turn" },
+          { img: "./assets/1991.jpg", title: "1991: End of the Cold War", era: "Soviet Dissolution • 1 Mo/Turn" },
+          { img: "./assets/1877.jpg", title: "1877: 93 War & Siege of Plevna", era: "Age of Empires & Balkans • 1 Mo/Turn" },
+          { img: "./assets/1812.jpg", title: "1812: Napoleonic Wars", era: "Grand Coalition • 2 Mo/Turn" },
+          { img: "./assets/1526.jpg", title: "1526: Suleiman & Battle of Mohács", era: "Ottoman Zenith • 3 Mo/Turn" },
+          { img: "./assets/1444.jpg", title: "1444: New Era", era: "Rise of Empires • 6 Mo/Turn" }
+        ],
+        features: [
+          { title: "Zero-Idle-Token MCP Wait Loop", desc: "wait_for_player_action blocks cleanly until your next order or diplomatic message arrives." },
+          { title: "270 Provinces & 14 Map Themes", desc: "MapLibre GL atlas with terrain relief shading, curved nation labels, and 8 built-in Web Audio tracks." },
+          { title: "Animated AI Map Landmarks", desc: "AI-managed animated map pins highlight factories, bases, naval yards, summits, and crises." },
+          { title: "1-on-1 Leaders & Multilateral Councils", desc: "Hold direct talks with heads of state or convene multi-nation summits and coalitions." },
+          { title: "Smart Gazette Archive & Time Travel", desc: "LATEST/OLD stamps, turn/topic grouping, instant search, and full turn-by-turn rollback." },
+          { title: "Browser Saves & Drag-Drop Import", desc: "Save progress in IndexedDB or export/drop portable .mur4history.json campaign files." }
+        ]
+      }
+    };
+
+    function setLang(lang) {
+      const d = COPY[lang] || COPY.en;
+      document.documentElement.lang = lang;
+      document.getElementById("btn-tr").classList.toggle("active", lang === "tr");
+      document.getElementById("btn-en").classList.toggle("active", lang === "en");
+      document.getElementById("badges").innerHTML = d.badges.map(b => `<span class="badge">${b}</span>`).join("");
+      document.getElementById("hero-title").textContent = d.heroTitle;
+      document.getElementById("hero-sub").textContent = d.heroSub;
+      document.getElementById("cta-start").textContent = d.ctaStart;
+      document.getElementById("cta-scenarios").textContent = d.ctaScenarios;
+      document.getElementById("pages-note").innerHTML = d.pagesNote;
+      document.getElementById("sec-scen-title").textContent = d.secScen;
+      document.getElementById("sec-feat-title").textContent = d.secFeat;
+      document.getElementById("sec-run-title").textContent = d.secRun;
+      document.getElementById("sec-comm-title").textContent = d.secComm;
+      document.getElementById("comm-dc-desc").textContent = d.commDcDesc;
+      document.getElementById("comm-gh-desc").textContent = d.commGhDesc;
+      document.getElementById("qs-local-title").textContent = d.qsLocalTitle;
+      document.getElementById("qs-local-desc").textContent = d.qsLocalDesc;
+      document.getElementById("qs-docker-title").textContent = d.qsDockerTitle;
+      document.getElementById("qs-docker-desc").textContent = d.qsDockerDesc;
+      document.getElementById("qs-mcp-title").textContent = d.qsMcpTitle;
+      document.getElementById("qs-mcp-desc").textContent = d.qsMcpDesc;
+      document.getElementById("footer-text").textContent = d.footer;
+      document.getElementById("scenario-grid").innerHTML = d.scenarios.map(s => `
+        <div class="card">
+          <img class="scen-img" src="${s.img}" alt="${s.title}" />
+          <div class="card-pad"><h3>${s.title}</h3><p>${s.era}</p></div>
+        </div>
+      `).join("");
+      document.getElementById("feature-grid").innerHTML = d.features.map(f => `
+        <div class="card card-pad"><h3>${f.title}</h3><p>${f.desc}</p></div>
+      `).join("");
+    }
+
+    const navLang = (navigator.language || "en").toLowerCase().startsWith("tr") ? "tr" : "en";
+    setLang(navLang);
+  </script>
+</body>
+</html>

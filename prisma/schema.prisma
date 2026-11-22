@@ -1,0 +1,263 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Scenario {
+  id                 String        @id
+  slug               String        @unique
+  title              String
+  era                String
+  startDate          String
+  turnIntervalMonths Int           @default(3)
+  description        String
+  isPreset           Boolean       @default(false)
+  configJson         String
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  sessions           GameSession[]
+}
+
+model GameSession {
+  id                   String              @id @default(cuid())
+  name                 String
+  scenarioId           String
+  scenario             Scenario            @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  playerCountryCode    String?
+  currentDate          String
+  turnNumber           Int                 @default(1)
+  globalTension        Int                 @default(25)
+  difficulty           String              @default("NORMAL")
+  timeJumpInterval     String              @default("SCENARIO_DEFAULT")
+  awaitingAiSimulation Boolean             @default(false)
+  lastMcpClientName    String?
+  lastMcpActivityAt    DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  countries            Country[]
+  regions              RegionOwnership[]
+  diplomacies          DiplomacyRelation[]
+  orders               PendingOrder[]
+  events               WorldEvent[]
+  messages             DiplomaticMessage[]
+  leaderChats          LeaderChatMessage[]
+  councils             DiplomacyCouncil[]
+  mapMarkers           MapMarker[]
+  advisorChats         AdvisorChatMessage[]
+  snapshots            TurnSnapshot[]
+}
+
+model Country {
+  id              String      @id @default(cuid())
+  sessionId       String
+  session         GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  code            String
+  name            String
+  flagEmoji       String
+  color           String
+  leader          String
+  ideology        String
+  economy         Int         @default(50)
+  military        Int         @default(50)
+  stability       Int         @default(70)
+  treasury        Int         @default(1000)
+  infamy          Int         @default(0)
+  warExhaustion   Int         @default(0)
+  capitalRegionId String?
+  isMajor         Boolean     @default(false)
+  description     String?
+
+  @@unique([sessionId, code])
+  @@index([sessionId])
+}
+
+model RegionOwnership {
+  id                  String      @id @default(cuid())
+  sessionId           String
+  session             GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  regionId            String
+  regionName          String
+  ownerCountryCode    String
+  strategicStatus     String      @default("CORE")
+  baseValue           Int         @default(5)
+  lastTransferredTurn Int?
+  transferReason      String?
+
+  @@unique([sessionId, regionId])
+  @@index([sessionId])
+  @@index([sessionId, ownerCountryCode])
+}
+
+model DiplomacyRelation {
+  id          String      @id @default(cuid())
+  sessionId   String
+  session     GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  countryA    String
+  countryB    String
+  status      String      @default("NEUTRAL")
+  treatyName  String?
+  updatedTurn Int         @default(1)
+
+  @@unique([sessionId, countryA, countryB])
+  @@index([sessionId])
+}
+
+model PendingOrder {
+  id                String      @id @default(cuid())
+  sessionId         String
+  session           GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  countryCode       String
+  orderType         String      @default("COMMAND")
+  targetCountryCode String?
+  content           String
+  turnNumber        Int
+  status            String      @default("PENDING")
+  createdAt         DateTime    @default(now())
+
+  @@index([sessionId, status])
+}
+
+model WorldEvent {
+  id                String      @id @default(cuid())
+  sessionId         String
+  session           GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  turnNumber        Int
+  gameDate          String
+  headline          String
+  articleBody       String
+  category          String
+  involvedCountries String
+  createdAt         DateTime    @default(now())
+
+  @@index([sessionId, turnNumber])
+}
+
+model DiplomaticMessage {
+  id              String      @id @default(cuid())
+  sessionId       String
+  session         GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  turnNumber      Int
+  gameDate        String
+  fromCountryCode String
+  toCountryCode   String
+  senderTitle     String
+  message         String
+  isFromPlayer    Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+
+  @@index([sessionId, turnNumber])
+}
+
+model TurnSnapshot {
+  id         String      @id @default(cuid())
+  sessionId  String
+  session    GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  turnNumber Int
+  gameDate   String
+  summary    String
+  stateJson  String
+  createdAt  DateTime    @default(now())
+
+  @@unique([sessionId, turnNumber])
+  @@index([sessionId])
+}
+
+model LeaderChatMessage {
+  id                String      @id @default(cuid())
+  sessionId         String
+  session           GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  countryCode       String
+  playerCountryCode String
+  senderRole        String
+  senderName        String
+  content           String
+  status            String      @default("DELIVERED")
+  turnNumber        Int
+  gameDate          String
+  createdAt         DateTime    @default(now())
+
+  @@index([sessionId, countryCode, createdAt])
+}
+
+model DiplomacyCouncil {
+  id               String                    @id @default(cuid())
+  sessionId        String
+  session          GameSession               @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  title            String
+  topic            String
+  councilType      String                    @default("COUNCIL")
+  initiatorCode    String
+  participantCodes String
+  status           String                    @default("OPEN")
+  turnNumber       Int
+  gameDate         String
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  messages         DiplomacyCouncilMessage[]
+
+  @@index([sessionId, status])
+}
+
+model DiplomacyCouncilMessage {
+  id         String           @id @default(cuid())
+  councilId  String
+  council    DiplomacyCouncil @relation(fields: [councilId], references: [id], onDelete: Cascade)
+  sessionId  String
+  senderCode String
+  senderName String
+  senderRole String
+  content    String
+  stance     String?
+  status     String           @default("DELIVERED")
+  turnNumber Int
+  gameDate   String
+  createdAt  DateTime         @default(now())
+
+  @@index([councilId, createdAt])
+  @@index([sessionId, status])
+}
+
+model MapMarker {
+  id          String      @id @default(cuid())
+  sessionId   String
+  session     GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  countryCode String
+  regionId    String?
+  cityName    String?
+  title       String
+  description String
+  category    String      @default("INDUSTRY")
+  status      String      @default("ACTIVE")
+  level       Int         @default(1)
+  lat         Float
+  lng         Float
+  turnNumber  Int
+  gameDate    String
+  isAnimated  Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([sessionId])
+  @@index([sessionId, regionId])
+}
+
+model AdvisorChatMessage {
+  id                  String      @id @default(cuid())
+  sessionId           String
+  session             GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  senderRole          String
+  senderName          String
+  content             String
+  suggestedOrdersJson String?
+  status              String      @default("DELIVERED")
+  turnNumber          Int
+  gameDate            String
+  createdAt           DateTime    @default(now())
+
+  @@index([sessionId, createdAt])
+  @@index([sessionId, status])
+}
