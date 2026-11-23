@@ -97,10 +97,10 @@ async function run() {
     );
     await mcpClient.connect(streamableTransport);
 
-    // List & Read all 9 resources
+    // List & Read all 10 resources
     const resList = await mcpClient.listResources();
     console.log("MCP Resources:", resList.resources.map((r) => r.uri));
-    assert.equal(resList.resources.length, 9);
+    assert.equal(resList.resources.length, 10);
 
     let worldStateJson = null;
     for (const r of resList.resources) {
@@ -147,10 +147,10 @@ async function run() {
     });
     assert.equal(noteRes.status, 200);
 
-    // Call all 14 MCP Tools (including list_game_sessions, read_game_context, live blocking wait_for_player_action, manage_map_markers, and reply_advisor_chat!)
+    // Call all 17 MCP Tools (including War Theater: provoke_country, trigger_war_operation, launch_nuclear_strike!)
     const toolsList = await mcpClient.listTools();
     console.log("MCP Tools:", toolsList.tools.map((t) => t.name));
-    assert.equal(toolsList.tools.length, 14);
+    assert.equal(toolsList.tools.length, 17);
 
     // Since orderRes (complete_turn) and chatPost are already pending, calling wait_for_player_action resolves immediately:
     const immediateWait = await mcpClient.callTool({
@@ -404,6 +404,61 @@ async function run() {
     assert.equal(advisorReplyJson.message.suggestedOrders.length, 1);
     console.log("AI Advisor MCP chat & suggested_orders verified!");
 
+    // Test Live War Engine, War Probability, Provocations & Nuclear Strike
+    const warGetRes = await fetch(`${BASE}/api/sessions/${sessionId}/war`);
+    assert.equal(warGetRes.status, 200);
+    const warGetData = await warGetRes.json();
+    assert.ok(Object.keys(warGetData.playerRisks || {}).length > 100);
+
+    const inciteRes = await mcpClient.callTool({
+      name: "provoke_country",
+      arguments: {
+        actor_country_id: "TUR",
+        target_country_id: "FRA",
+        instigate_with_country_id: "ITA",
+        action_type: "INCITE_THIRD_PARTY_WAR",
+      },
+    });
+    const inciteJson = JSON.parse(inciteRes.content[0].text);
+    assert.equal(inciteJson.ok, true);
+    assert.ok(inciteJson.newTension >= 50);
+
+    const opRes = await mcpClient.callTool({
+      name: "trigger_war_operation",
+      arguments: {
+        mode: "LAUNCH",
+        attacker_country_id: "TUR",
+        defender_country_id: "ITA",
+        operation_type: "TANK_BLITZ",
+        unit_type: "ARMOR",
+        intensity: 82,
+      },
+    });
+    const opJson = JSON.parse(opRes.content[0].text);
+    assert.equal(opJson.ok, true);
+    assert.equal(opJson.operation.unitType, "ARMOR");
+
+    const advWarRes = await mcpClient.callTool({
+      name: "trigger_war_operation",
+      arguments: { mode: "ADVANCE" },
+    });
+    const advWarJson = JSON.parse(advWarRes.content[0].text);
+    assert.equal(advWarJson.ok, true);
+    assert.ok(advWarJson.advancedCount >= 1);
+
+    const nukeRes = await mcpClient.callTool({
+      name: "launch_nuclear_strike",
+      arguments: {
+        attacker_country_id: "TUR",
+        defender_country_id: "ITA",
+      },
+    });
+    const nukeJson = JSON.parse(nukeRes.content[0].text);
+    assert.equal(nukeJson.ok, true);
+    assert.equal(nukeJson.operation.operationType, "NUCLEAR_STRIKE");
+    assert.equal(nukeJson.operation.status, "DETONATED");
+    console.log("Live Warfare, Provocation, Tank Siege & Nuclear Strike verified!");
+
     await mcpClient.close();
 
     // Give UI SSE stream a moment to flush
@@ -423,6 +478,10 @@ async function run() {
       "leader_chat_reply",
       "council_updated",
       "map_marker_updated",
+      "war_operation_started",
+      "war_operation_updated",
+      "nuclear_strike",
+      "diplomatic_provocation",
       "advisor_chat_updated",
       "advisor_chat_reply",
       "turn_advanced",
@@ -444,7 +503,7 @@ async function run() {
     );
     await legacyClient.connect(legacyTransport);
     const legacyTools = await legacyClient.listTools();
-    assert.equal(legacyTools.tools.length, 14);
+    assert.equal(legacyTools.tools.length, 17);
     await legacyClient.close();
     console.log("Legacy SSE transport verified successfully!");
 
@@ -465,6 +524,7 @@ async function run() {
     assert.ok(exportedArchive.regions.length > 200);
     assert.ok(exportedArchive.councils.length >= 1);
     assert.ok(exportedArchive.mapMarkers.some((m) => m.cityName === "Ankara" && m.level === 3));
+    assert.ok(Array.isArray(exportedArchive.warOperations) && exportedArchive.warOperations.length >= 2);
     assert.ok(exportedArchive.advisorChats.length >= 2);
     assert.ok(exportedArchive.leaderChats.length >= 2);
     assert.ok(exportedArchive.snapshots.length >= 2);

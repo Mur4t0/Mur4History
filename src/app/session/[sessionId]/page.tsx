@@ -60,6 +60,11 @@ export default async function SessionPage({
       createdAt: mk.createdAt.toISOString(),
       updatedAt: mk.updatedAt.toISOString(),
     })),
+    warOperations: (session.warOperations ?? []).map((wo) => ({
+      ...wo,
+      createdAt: wo.createdAt.toISOString(),
+      updatedAt: wo.updatedAt.toISOString(),
+    })),
     advisorChats: (session.advisorChats ?? []).map((ac) => ({
       ...ac,
       createdAt: ac.createdAt.toISOString(),

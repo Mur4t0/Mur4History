@@ -19,7 +19,13 @@ import type {
   MapMarkerRecord,
   MapMode,
   RegionRecord,
+  WarOperationRecord,
+  WarRiskSummary,
 } from "@/lib/client-types";
+import {
+  WarEffectsCanvas,
+  type NuclearAnimationEvent,
+} from "./WarEffectsCanvas";
 import {
   DEFAULT_GAME_SETTINGS,
   MAP_THEME_BY_ID,
@@ -55,6 +61,12 @@ interface WorldMapProps {
   countries: CountryRecord[];
   diplomacies: DiplomacyRecord[];
   mapMarkers?: MapMarkerRecord[];
+  warOperations?: WarOperationRecord[];
+  warHotspots?: WarRiskSummary[];
+  playerRisks?: Record<string, WarRiskSummary>;
+  activeNukes?: NuclearAnimationEvent[];
+  onExpireNuke?: (id: string) => void;
+  nukeShake?: boolean;
   mapMode: MapMode;
   mapSettings?: MapAppearanceSettings;
   perspectiveCountryCode: string | null;
@@ -541,6 +553,12 @@ export function WorldMap({
   countries,
   diplomacies,
   mapMarkers = [],
+  warOperations = [],
+  warHotspots = [],
+  playerRisks = {},
+  activeNukes = [],
+  onExpireNuke,
+  nukeShake = false,
   mapMode,
   mapSettings = DEFAULT_GAME_SETTINGS.map,
   perspectiveCountryCode,
@@ -661,6 +679,32 @@ export function WorldMap({
     }
 
     const flashSet = new Set(flashedRegionIds);
+    const activeOps = warOperations.filter((op) =>
+      ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status)
+    );
+    const besiegedRegionSet = new Set(activeOps.map((op) => op.targetRegionId));
+    const atWarCountrySet = new Set<string>();
+    for (const d of diplomacies) {
+      if (d.status === "WAR") {
+        atWarCountrySet.add(d.countryA);
+        atWarCountrySet.add(d.countryB);
+      }
+    }
+    for (const op of activeOps) {
+      atWarCountrySet.add(op.attackerCode);
+      atWarCountrySet.add(op.defenderCode);
+    }
+    const maxRiskByCountry = new Map<string, number>();
+    for (const hs of warHotspots) {
+      maxRiskByCountry.set(
+        hs.countryA,
+        Math.max(maxRiskByCountry.get(hs.countryA) ?? 0, hs.probability)
+      );
+      maxRiskByCountry.set(
+        hs.countryB,
+        Math.max(maxRiskByCountry.get(hs.countryB) ?? 0, hs.probability)
+      );
+    }
     const featuresByOwner = new Map<string, RawFeature[]>();
     const capitalFeatures: GeoJSON.Feature[] = [];
 
@@ -682,6 +726,22 @@ export function WorldMap({
         fillColor = economyColor(owner?.economy ?? 25);
       } else if (mapMode === "threat") {
         fillColor = threatColor(owner?.infamy ?? 0);
+      } else if (mapMode === "war") {
+        const pairRisk = Math.max(
+          playerRisks[ownerCode]?.probability ?? 0,
+          maxRiskByCountry.get(ownerCode) ?? 0
+        );
+        if (besiegedRegionSet.has(rid)) {
+          fillColor = "#f97316";
+        } else if (atWarCountrySet.has(ownerCode)) {
+          fillColor = "#dc2626";
+        } else if (pairRisk >= 72) {
+          fillColor = "#ea580c";
+        } else if (pairRisk >= 48) {
+          fillColor = "#ca8a04";
+        } else {
+          fillColor = "#162033";
+        }
       }
 
       const isSelected = rid === selectedRegionId;
@@ -887,6 +947,10 @@ export function WorldMap({
     rawGeo,
     regionById,
     countryByCode,
+    diplomacies,
+    warOperations,
+    warHotspots,
+    playerRisks,
     mapMode,
     perspectiveCountryCode,
     diplomacyLookup,
@@ -894,6 +958,22 @@ export function WorldMap({
     flashedRegionIds,
     locale,
   ]);
+
+  const capitalCoordsByCountry = useMemo(() => {
+    const map = new Map<string, { lng: number; lat: number }>();
+    if (!rawGeo) return map;
+    const featMap = new Map(rawGeo.features.map((f) => [f.properties.region_id, f]));
+    for (const c of countries) {
+      const cap = c.capitalRegionId ? featMap.get(c.capitalRegionId) : undefined;
+      if (cap?.properties.centroid_lon !== undefined && cap?.properties.centroid_lat !== undefined) {
+        map.set(c.code, {
+          lng: cap.properties.centroid_lon,
+          lat: cap.properties.centroid_lat,
+        });
+      }
+    }
+    return map;
+  }, [rawGeo, countries]);
 
   const mapSettingsRef = useRef(mapSettings);
   mapSettingsRef.current = mapSettings;
@@ -1479,10 +1559,25 @@ export function WorldMap({
 
   return (
     <div
-      className="relative h-full w-full overflow-hidden transition-colors duration-300"
+      className={`relative h-full w-full overflow-hidden transition-colors duration-300 ${
+        nukeShake ? "animate-mur4-nuke-shake" : ""
+      }`}
       style={{ backgroundColor: activeTheme.oceanColor }}
     >
       <div ref={containerRef} className="h-full w-full" />
+
+      <WarEffectsCanvas
+        map={mapRef.current}
+        mapReady={mapReady}
+        warOperations={warOperations}
+        warHotspots={warHotspots}
+        countries={countries}
+        capitalCoordsByCountry={capitalCoordsByCountry}
+        activeNukes={activeNukes}
+        mapMode={mapMode}
+        locale={locale}
+        onExpireNuke={onExpireNuke}
+      />
 
       {/* Subtle Vignette for Atlas Depth */}
       <div
@@ -1520,6 +1615,27 @@ export function WorldMap({
           <span className="flex items-center gap-1">
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />{" "}
             {isTr ? "Süper Güç" : "Superpower"}
+          </span>
+        </div>
+      )}
+
+      {mapMode === "war" && (
+        <div className="pointer-events-none absolute bottom-16 left-1/2 z-20 flex -translate-x-1/2 flex-wrap items-center gap-3 rounded-full border border-rose-500/45 bg-[#0b1019]/95 px-4 py-1.5 text-[11px] backdrop-blur-md">
+          <span className="flex items-center gap-1.5 text-rose-300 font-semibold">
+            <span className="h-2.5 w-2.5 rounded-full bg-red-600 animate-pulse" />
+            {isTr ? "Aktif Savaşta" : "At War"}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-orange-500" />
+            {isTr ? "Kuşatma / Kritik Risk" : "Siege / Critical"}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-yellow-600" />
+            {isTr ? "Yüksek Gerilim" : "High Tension"}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-slate-800" />
+            {isTr ? "Sakin" : "Calm"}
           </span>
         </div>
       )}
@@ -1662,6 +1778,15 @@ export function WorldMap({
               {isTr ? "Değer" : "Value"}: {hoverInfo.baseValue}
             </span>
           </div>
+          {hoverInfo.ownerCode !== perspectiveCountryCode &&
+            playerRisks[hoverInfo.ownerCode] && (
+              <div className="mt-1 flex items-center justify-between rounded bg-rose-950/50 px-1.5 py-0.5 text-[10px] text-rose-200">
+                <span>{isTr ? "Savaş Olasılığı:" : "War Risk:"}</span>
+                <span className="font-mono font-bold">
+                  %{playerRisks[hoverInfo.ownerCode].probability}
+                </span>
+              </div>
+            )}
         </div>
       )}
     </div>

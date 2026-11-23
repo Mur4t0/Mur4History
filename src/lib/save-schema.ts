@@ -34,6 +34,7 @@ export const SaveArchiveDiplomacySchema = z.object({
   countryA: z.string().min(1),
   countryB: z.string().min(1),
   status: z.string(),
+  tension: z.number().int().min(0).max(100).default(20),
   treatyName: NullableString,
   updatedTurn: z.number().int().default(1),
 });
@@ -123,6 +124,30 @@ export const SaveArchiveMapMarkerSchema = z.object({
   createdAt: z.string().optional(),
 });
 
+export const SaveArchiveWarOperationSchema = z.object({
+  operationType: z.string().default("SIEGE"),
+  unitType: z.string().default("INFANTRY"),
+  attackerCode: z.string(),
+  defenderCode: z.string(),
+  fromRegionId: NullableString,
+  fromLat: z.number(),
+  fromLng: z.number(),
+  targetRegionId: z.string(),
+  targetRegionName: z.string(),
+  targetLat: z.number(),
+  targetLng: z.number(),
+  intensity: z.number().int().default(60),
+  progress: z.number().int().default(0),
+  attackerLosses: z.number().int().default(0),
+  defenderLosses: z.number().int().default(0),
+  status: z.string().default("MARCHING"),
+  title: z.string(),
+  description: z.string(),
+  turnNumber: z.number().int(),
+  gameDate: z.string(),
+  createdAt: z.string().optional(),
+});
+
 export const SaveArchiveAdvisorChatSchema = z.object({
   senderRole: z.string(),
   senderName: z.string(),
@@ -187,6 +212,7 @@ export const SaveArchiveSchema = z.object({
   leaderChats: z.array(SaveArchiveLeaderChatSchema).default([]),
   councils: z.array(SaveArchiveCouncilSchema).default([]),
   mapMarkers: z.array(SaveArchiveMapMarkerSchema).default([]),
+  warOperations: z.array(SaveArchiveWarOperationSchema).default([]),
   advisorChats: z.array(SaveArchiveAdvisorChatSchema).default([]),
   snapshots: z.array(SaveArchiveSnapshotSchema).default([]),
 });

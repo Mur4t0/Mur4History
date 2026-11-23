@@ -391,6 +391,11 @@ export function getMcpRegistryMetadata(locale: AppLocale): McpRegistryMeta {
           description:
             "Live strategy brainstorm room where the player asks the AI Advisor for ideas and suggested orders.",
         },
+        "war-theater": {
+          title: "Live War Theater, Tension & Outbreak Probabilities",
+          description:
+            "Active wars, animated sieges, tank/infantry operations, bilateral tension scores, and war outbreak risk percentages.",
+        },
       },
       tools: {
         list_game_sessions: {
@@ -463,6 +468,21 @@ export function getMcpRegistryMetadata(locale: AppLocale): McpRegistryMeta {
           description:
             "Replies to player questions in the Strategy Advisor / War Room and optionally attaches one-click suggested_orders cards (do NOT call advance_turn).",
         },
+        provoke_country: {
+          title: "Provoke Nation / Incite Third-Party War",
+          description:
+            "Escalates bilateral tension & war probability via border skirmishes, insults, rebel sponsorship, or instigates open war between two other nations.",
+        },
+        trigger_war_operation: {
+          title: "Launch or Advance Animated Siege / Military Operation",
+          description:
+            "Deploys animated marching infantry, armored tank blitz, air strikes, or naval invasions toward a target province on the live world map.",
+        },
+        launch_nuclear_strike: {
+          title: "Launch Strategic Nuclear Strike",
+          description:
+            "Fires a ballistic nuclear warhead onto a target province/city with ICBM trajectory, mushroom cloud animation, fallout crater marker, and war escalation.",
+        },
       },
       prompt: {
         title: "Mur4History Game Master Directive (English)",
@@ -518,6 +538,11 @@ export function getMcpRegistryMetadata(locale: AppLocale): McpRegistryMeta {
         title: "AI Advisor & Strategy Brainstorming Chat",
         description:
           "Oyuncunun doğrudan yapay zekaya stratejik fikir sorduğu veya mesajlaştığı canlı danışman sohbet odası.",
+      },
+      "war-theater": {
+        title: "Canlı Savaş Meydanı, Gerilim & Savaş Çıkma Olasılıkları",
+        description:
+          "Aktif savaşlar, haritada ilerleyen animasyonlu kuşatma/tank/piyade harekatları, gerilim puanları ve savaş çıkma olasılığı yüzdeleri.",
       },
     },
     tools: {
@@ -590,6 +615,21 @@ export function getMcpRegistryMetadata(locale: AppLocale): McpRegistryMeta {
         title: "Reply to Player in AI Strategy Advisor & Brainstorm Chat",
         description:
           "Oyuncunun Strateji Danışmanı / Fikir Odası'nda sorduğu sorulara yanıt ve tek tıkla emir öneri kartları (suggested_orders) sunar (turu ilerletmez).",
+      },
+      provoke_country: {
+        title: "Ülke Kışkırt / Üçüncü Ülkeleri Birbirine Düşür",
+        description:
+          "Sınır tacizi, diplomatik hakaret, isyancı desteği veya sahte bayrak operasyonuyla savaş olasılığını yükseltir ve ülkeler arasında gerçek savaş çıkarır.",
+      },
+      trigger_war_operation: {
+        title: "Canlı Animasyonlu Kuşatma / Taarruz Başlat",
+        description:
+          "Haritada bir hedef eyalete doğru yürüyen askerler, zırhlı tank birlikleri, hava akını veya deniz çıkarması harekatı başlatır/ilerletir.",
+      },
+      launch_nuclear_strike: {
+        title: "Stratejik Nükleer Saldırı Düzenle",
+        description:
+          "Seçili hedef eyalete/şehre balistik füze rotası, mantar bulutu animasyonu, krater işareti ve ağır hasar ile nükleer başlık fırlatır.",
       },
     },
     prompt: {

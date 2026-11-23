@@ -1,15 +1,20 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useLocale } from "@/components/LanguageProvider";
 import { getCountryDisplayName } from "@/lib/i18n";
 
 import {
+  Bomb,
   Coins,
   Crown,
+  Flame,
   Landmark,
   MapPin,
   MessageSquare,
+  Radiation,
   Shield,
+  ShieldAlert,
   Sparkles,
   Swords,
   TrendingUp,
@@ -22,6 +27,7 @@ import type {
   DiplomacyRecord,
   MapMarkerRecord,
   RegionRecord,
+  WarRiskSummary,
 } from "@/lib/client-types";
 
 interface CountrySidebarProps {
@@ -32,11 +38,20 @@ interface CountrySidebarProps {
   regions: RegionRecord[];
   diplomacies: DiplomacyRecord[];
   mapMarkers?: MapMarkerRecord[];
+  warRiskWithPlayer?: WarRiskSummary | null;
   onFocusPlayerCountry: () => void;
   onQuickDiplomacy: (targetCode: string) => void;
   onOpenLeaderChat: (targetCode: string) => void;
   onInspectCountry: (code: string) => void;
   onFocusMarker?: (marker: MapMarkerRecord) => void;
+  onQuickWarAction?: (params: {
+    mode: "provoke" | "launch_operation" | "nuclear_strike";
+    actionType?: string;
+    operationType?: string;
+    targetCode: string;
+    targetRegionId?: string;
+  }) => Promise<void> | void;
+  onOpenWarMeddle?: (targetCode: string) => void;
 }
 
 const DIPLO_BADGE: Record<
@@ -117,14 +132,23 @@ export function CountrySidebar({
   regions,
   diplomacies,
   mapMarkers = [],
+  warRiskWithPlayer = null,
   onFocusPlayerCountry,
   onQuickDiplomacy,
   onOpenLeaderChat,
   onInspectCountry,
   onFocusMarker,
+  onQuickWarAction,
+  onOpenWarMeddle,
 }: CountrySidebarProps) {
   const { locale } = useLocale();
   const isTr = locale === "tr";
+  const [warBusy, setWarBusy] = useState(false);
+  const [confirmSidebarNuke, setConfirmSidebarNuke] = useState(false);
+
+  useEffect(() => {
+    setConfirmSidebarNuke(false);
+  }, [country?.code, selectedRegion?.regionId]);
 
   if (!country) {
     return (
@@ -222,6 +246,176 @@ export function CountrySidebar({
 
       <ScrollArea className="flex-1 min-w-0">
         <div className="space-y-4 p-4 pr-3.5">
+          {/* War Risk & Instant Provocation / Strike Console for Foreign Countries */}
+          {!isPlayerCountry && playerCountryCode && warRiskWithPlayer && (
+            <div
+              data-testid="sidebar-war-risk-card"
+              className="space-y-2.5 rounded-lg border border-rose-500/35 bg-gradient-to-br from-rose-950/30 via-[#101624] to-[#0b1019] p-3 text-xs"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 font-semibold text-rose-300">
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  {isTr ? "Savaş Çıkma Olasılığı" : "War Outbreak Risk"}
+                </span>
+                <Badge
+                  variant={
+                    warRiskWithPlayer.probability >= 70
+                      ? "destructive"
+                      : warRiskWithPlayer.probability >= 45
+                        ? "warning"
+                        : "default"
+                  }
+                >
+                  {isTr
+                    ? `%${warRiskWithPlayer.probability}`
+                    : `${warRiskWithPlayer.probability}%`}
+                </Badge>
+              </div>
+
+              <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-sky-400 via-amber-500 to-red-600 transition-all duration-500"
+                  style={{ width: `${warRiskWithPlayer.probability}%` }}
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-1">
+                {warRiskWithPlayer.factors.map((f) => (
+                  <span
+                    key={f}
+                    className="rounded border border-white/10 bg-black/35 px-1.5 py-0.5 text-[10px] text-slate-300"
+                  >
+                    {f}
+                  </span>
+                ))}
+              </div>
+
+              {onQuickWarAction && (
+                <div className="grid grid-cols-2 gap-1.5 pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={warBusy}
+                    onClick={async () => {
+                      setWarBusy(true);
+                      try {
+                        await onQuickWarAction({
+                          mode: "provoke",
+                          actionType: "BORDER_SKIRMISH",
+                          targetCode: country.code,
+                          targetRegionId: selectedRegion?.regionId,
+                        });
+                      } finally {
+                        setWarBusy(false);
+                      }
+                    }}
+                    className="h-7 border-amber-500/40 text-[10px] text-amber-300 hover:bg-amber-500/15"
+                  >
+                    <Flame className="h-3 w-3" />
+                    {isTr ? "Kışkırt / Sınır" : "Skirmish"}
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={warBusy}
+                    onClick={async () => {
+                      setWarBusy(true);
+                      try {
+                        await onQuickWarAction({
+                          mode: "provoke",
+                          actionType: "SPONSOR_REBELS",
+                          targetCode: country.code,
+                          targetRegionId: selectedRegion?.regionId,
+                        });
+                      } finally {
+                        setWarBusy(false);
+                      }
+                    }}
+                    className="h-7 border-orange-500/40 text-[10px] text-orange-300 hover:bg-orange-500/15"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    {isTr ? "İsyancı Destekle" : "Sponsor Rebels"}
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={warBusy}
+                    onClick={async () => {
+                      setWarBusy(true);
+                      try {
+                        await onQuickWarAction({
+                          mode: "launch_operation",
+                          operationType: "TANK_BLITZ",
+                          targetCode: country.code,
+                          targetRegionId: selectedRegion?.regionId,
+                        });
+                      } finally {
+                        setWarBusy(false);
+                      }
+                    }}
+                    className="h-7 border-rose-500/45 text-[10px] text-rose-300 hover:bg-rose-500/15"
+                  >
+                    <Swords className="h-3 w-3" />
+                    {isTr ? "Kuşat / Tank Sür" : "Tank Blitz"}
+                  </Button>
+
+                  {onOpenWarMeddle && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onOpenWarMeddle(country.code)}
+                      className="h-7 border-sky-500/40 text-[10px] text-sky-300 hover:bg-sky-500/15"
+                    >
+                      <Flame className="h-3 w-3" />
+                      {isTr ? "Birbirine Düşür" : "Incite War"}
+                    </Button>
+                  )}
+
+                  {confirmSidebarNuke ? (
+                    <Button
+                      size="sm"
+                      disabled={warBusy}
+                      onClick={async () => {
+                        setWarBusy(true);
+                        setConfirmSidebarNuke(false);
+                        try {
+                          await onQuickWarAction({
+                            mode: "nuclear_strike",
+                            targetCode: country.code,
+                            targetRegionId: selectedRegion?.regionId,
+                          });
+                        } finally {
+                          setWarBusy(false);
+                        }
+                      }}
+                      className="col-span-2 h-7 bg-red-600 text-[10px] font-bold text-white hover:bg-red-500"
+                    >
+                      <Radiation className="h-3.5 w-3.5 animate-spin" />
+                      {isTr
+                        ? `ONAYLA: ${selectedRegion?.regionName ?? country.code} Nükleer Vur!`
+                        : `CONFIRM NUKING ${selectedRegion?.regionName ?? country.code}!`}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={warBusy}
+                      onClick={() => setConfirmSidebarNuke(true)}
+                      className="col-span-2 h-7 border-red-500/50 bg-red-950/35 text-[10px] text-red-300 hover:bg-red-900/50"
+                    >
+                      <Bomb className="h-3 w-3" />
+                      {isTr
+                        ? `Nükleer Füze Fırlat (${selectedRegion?.regionName ?? country.code})`
+                        : `Launch Nuclear Strike (${selectedRegion?.regionName ?? country.code})`}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Leader & Ideology */}
           <div className="space-y-2 rounded-lg border border-border/70 bg-secondary/35 p-3 text-xs">
             <div className="flex items-start justify-between gap-2">

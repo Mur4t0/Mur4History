@@ -40,6 +40,12 @@ import {
   toolUpdateCountryStats,
   toolWaitForPlayerAction,
 } from "@/lib/game-engine";
+import {
+  advanceLiveWarOperations,
+  launchWarOperation,
+  provokeNationAction,
+  readWarTheaterResource,
+} from "@/lib/war-engine";
 
 async function resolveTargetSessionId(
   boundSessionId: string,
@@ -97,6 +103,7 @@ export function createGameMasterMcpServer(boundSessionId: string): McpServer {
     ["diplomatic-councils", readDiplomaticCouncilsResource],
     ["map-markers", readMapMarkersResource],
     ["advisor-chat", readAdvisorChatResource],
+    ["war-theater", readWarTheaterResource],
   ];
 
   for (const [name, reader] of resourceReaders) {
@@ -951,6 +958,212 @@ export function createGameMasterMcpServer(boundSessionId: string): McpServer {
             {
               type: "text",
               text: JSON.stringify({ ok: true, ...result }, null, 2),
+            },
+          ],
+        };
+      }
+    )
+  );
+
+  toolHandles.set(
+    "provoke_country",
+    server.registerTool(
+      "provoke_country",
+      {
+        ...initialMeta.tools.provoke_country,
+        inputSchema: {
+          actor_country_id: z
+            .string()
+            .describe(d("Kışkırtmayı yapan ülke kodu.", "Acting country code.")),
+          target_country_id: z
+            .string()
+            .describe(d("Hedef ülke kodu.", "Target country code.")),
+          instigate_with_country_id: z
+            .string()
+            .optional()
+            .describe(
+              d(
+                "INCITE_THIRD_PARTY_WAR için birbirine düşürülecek 2. ülke kodu.",
+                "Second target nation for INCITE_THIRD_PARTY_WAR meddling."
+              )
+            ),
+          action_type: z
+            .enum([
+              "BORDER_SKIRMISH",
+              "DIPLOMATIC_INSULT",
+              "SPONSOR_REBELS",
+              "INCITE_THIRD_PARTY_WAR",
+              "DECLARE_WAR",
+            ])
+            .describe(d("Kışkırtma / gerilim tırmandırma türü.", "Provocation / escalation type.")),
+          target_region_id: z
+            .string()
+            .optional()
+            .describe(d("Opsiyonel hedef eyalet ID'si.", "Optional target region ID.")),
+          custom_note: z
+            .string()
+            .optional()
+            .describe(d("Kışkırtma gerekçesi / olayı.", "Reason or narrative detail.")),
+        },
+      },
+      async (args) => {
+        const sid = await resolveId();
+        const result = await provokeNationAction({
+          sessionId: sid,
+          actorCode: args.actor_country_id.trim().toUpperCase(),
+          targetCode: args.target_country_id.trim().toUpperCase(),
+          instigateWithCode: args.instigate_with_country_id
+            ?.trim()
+            .toUpperCase(),
+          actionType: args.action_type,
+          targetRegionId: args.target_region_id,
+          customNote: args.custom_note,
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ ok: true, ...result }, null, 2),
+            },
+          ],
+        };
+      }
+    )
+  );
+
+  toolHandles.set(
+    "trigger_war_operation",
+    server.registerTool(
+      "trigger_war_operation",
+      {
+        ...initialMeta.tools.trigger_war_operation,
+        inputSchema: {
+          mode: z
+            .enum(["LAUNCH", "ADVANCE"])
+            .default("LAUNCH")
+            .describe(d("LAUNCH: yeni animasyonlu kuşatma/taarruz başlatır; ADVANCE: mevcut cepheleri ilerletir.", "LAUNCH creates a new siege/assault; ADVANCE ticks ongoing operations.")),
+          attacker_country_id: z
+            .string()
+            .optional()
+            .describe(d("Saldıran ülke kodu.", "Attacker country code.")),
+          defender_country_id: z
+            .string()
+            .optional()
+            .describe(d("Savunan ülke kodu.", "Defender country code.")),
+          target_region_id: z
+            .string()
+            .optional()
+            .describe(d("Kuşatılacak hedef eyalet ID'si.", "Target province region ID.")),
+          operation_type: z
+            .enum([
+              "SIEGE",
+              "ASSAULT",
+              "TANK_BLITZ",
+              "AIR_STRIKE",
+              "NAVAL_INVASION",
+              "REBEL_UPRISING",
+            ])
+            .optional()
+            .describe(d("Askeri harekat türü.", "Military operation type.")),
+          unit_type: z
+            .enum(["INFANTRY", "ARMOR", "AIR", "NAVAL"])
+            .optional()
+            .describe(d("Haritada animasyonu çizilecek birim tipi (asker/tank/uçak/donanma).", "Animated unit sprite type.")),
+          intensity: z
+            .number()
+            .min(10)
+            .max(100)
+            .optional()
+            .describe(d("Harekat yoğunluğu (10-100).", "Operation intensity (10-100).")),
+          title: z.string().optional(),
+          description: z.string().optional(),
+        },
+      },
+      async (args) => {
+        const sid = await resolveId();
+        if (args.mode === "ADVANCE") {
+          const res = await advanceLiveWarOperations({
+            sessionId: sid,
+            tickTensions: true,
+          });
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({ ok: true, ...res }, null, 2),
+              },
+            ],
+          };
+        }
+        if (!args.attacker_country_id || !args.defender_country_id) {
+          throw new Error(
+            "LAUNCH modu için attacker_country_id ve defender_country_id zorunludur."
+          );
+        }
+        const op = await launchWarOperation({
+          sessionId: sid,
+          attackerCode: args.attacker_country_id.trim().toUpperCase(),
+          defenderCode: args.defender_country_id.trim().toUpperCase(),
+          targetRegionId: args.target_region_id,
+          operationType: args.operation_type ?? "TANK_BLITZ",
+          unitType: args.unit_type,
+          intensity: args.intensity ?? 75,
+          title: args.title,
+          description: args.description,
+          autoDeclareWar: args.operation_type !== "REBEL_UPRISING",
+          skipAiWake: true,
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ ok: true, operation: op }, null, 2),
+            },
+          ],
+        };
+      }
+    )
+  );
+
+  toolHandles.set(
+    "launch_nuclear_strike",
+    server.registerTool(
+      "launch_nuclear_strike",
+      {
+        ...initialMeta.tools.launch_nuclear_strike,
+        inputSchema: {
+          attacker_country_id: z
+            .string()
+            .describe(d("Nükleer füzeyi ateşleyen ülke kodu.", "Launching country code.")),
+          defender_country_id: z
+            .string()
+            .describe(d("Hedef ülke kodu.", "Target country code.")),
+          target_region_id: z
+            .string()
+            .optional()
+            .describe(d("Vurulacak eyalet ID'si (opsiyonel; verilmezse stratejik eyalet seçilir).", "Target region ID.")),
+          title: z.string().optional(),
+        },
+      },
+      async (args) => {
+        const sid = await resolveId();
+        const op = await launchWarOperation({
+          sessionId: sid,
+          attackerCode: args.attacker_country_id.trim().toUpperCase(),
+          defenderCode: args.defender_country_id.trim().toUpperCase(),
+          targetRegionId: args.target_region_id,
+          operationType: "NUCLEAR_STRIKE",
+          unitType: "MISSILE",
+          intensity: 100,
+          title: args.title,
+          autoDeclareWar: true,
+          skipAiWake: true,
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ ok: true, operation: op }, null, 2),
             },
           ],
         };

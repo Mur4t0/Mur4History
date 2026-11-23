@@ -1,4 +1,4 @@
-export type MapMode = "political" | "diplomacy" | "economy" | "threat";
+export type MapMode = "political" | "diplomacy" | "economy" | "threat" | "war";
 export type DifficultyLevel =
   | "VERY_EASY"
   | "EASY"
@@ -58,6 +58,7 @@ export interface DiplomacyRecord {
     | "EMBARGO"
     | "NEUTRAL"
     | string;
+  tension?: number;
   treatyName: string | null;
   updatedTurn: number;
 }
@@ -222,6 +223,59 @@ export interface McpConnectionStatus {
   }>;
 }
 
+export interface WarOperationRecord {
+  id: string;
+  sessionId: string;
+  operationType:
+    | "SIEGE"
+    | "ASSAULT"
+    | "TANK_BLITZ"
+    | "AIR_STRIKE"
+    | "NAVAL_INVASION"
+    | "NUCLEAR_STRIKE"
+    | "REBEL_UPRISING"
+    | string;
+  unitType: "INFANTRY" | "ARMOR" | "AIR" | "NAVAL" | "MISSILE" | string;
+  attackerCode: string;
+  defenderCode: string;
+  fromRegionId: string | null;
+  fromLat: number;
+  fromLng: number;
+  targetRegionId: string;
+  targetRegionName: string;
+  targetLat: number;
+  targetLng: number;
+  intensity: number;
+  progress: number;
+  attackerLosses: number;
+  defenderLosses: number;
+  status:
+    | "MARCHING"
+    | "BESIEGING"
+    | "ACTIVE"
+    | "CAPTURED"
+    | "REPELLED"
+    | "DETONATED"
+    | string;
+  title: string;
+  description: string;
+  turnNumber: number;
+  gameDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WarRiskSummary {
+  countryA: string;
+  countryB: string;
+  probability: number;
+  tension: number;
+  status: string;
+  riskLevel: "LOW" | "MODERATE" | "HIGH" | "CRITICAL" | "AT_WAR";
+  borderAdjacent: boolean;
+  factors: string[];
+}
+
 export interface SessionState {
   id: string;
   name: string;
@@ -252,6 +306,7 @@ export interface SessionState {
   leaderChats: LeaderChatMessageRecord[];
   councils: DiplomacyCouncilRecord[];
   mapMarkers?: MapMarkerRecord[];
+  warOperations?: WarOperationRecord[];
   advisorChats?: AdvisorChatMessageRecord[];
   snapshots: TurnSnapshotSummary[];
   mcpStatus: McpConnectionStatus;

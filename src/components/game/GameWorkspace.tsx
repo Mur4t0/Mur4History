@@ -6,14 +6,17 @@ import { getCountryDisplayName } from "@/lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
+  Activity,
   ArrowLeft,
   ChevronDown,
   ChevronUp,
   Compass,
   Flag,
+  Flame,
   MessageSquare,
   Newspaper,
   Radio,
+  Swords,
   Users,
   Zap,
 } from "lucide-react";
@@ -27,8 +30,11 @@ import type {
   MapMode,
   SessionState,
   TimeJumpInterval,
+  WarOperationRecord,
+  WarRiskSummary,
 } from "@/lib/client-types";
 import { ambientMusic } from "@/lib/ambient-music";
+import { playWarActionSfx } from "@/lib/war-sfx";
 import {
   DEFAULT_GAME_SETTINGS,
   type GameSettings,
@@ -36,6 +42,7 @@ import {
   saveGameSettings,
 } from "@/lib/map-themes";
 import { WorldMap } from "./WorldMap";
+import type { NuclearAnimationEvent } from "./WarEffectsCanvas";
 import { TopHud } from "./TopHud";
 import { CountrySidebar } from "./CountrySidebar";
 import { ChronicleSidebar } from "./ChronicleSidebar";
@@ -48,6 +55,7 @@ import { LeaderChatModal } from "./LeaderChatModal";
 import { AdvisorModal } from "./AdvisorModal";
 import { SaveProgressModal } from "./SaveProgressModal";
 import { SettingsModal } from "./SettingsModal";
+import { WarRoomModal } from "./WarRoomModal";
 
 interface GameWorkspaceProps {
   initialSession: SessionState;
@@ -102,6 +110,14 @@ export function GameWorkspace({
   const [leaderChatTab, setLeaderChatTab] = useState<"direct" | "councils">("direct");
   const [leaderChatTarget, setLeaderChatTarget] = useState<string | null>(null);
   const [advisorOpen, setAdvisorOpen] = useState(false);
+  const [warRoomOpen, setWarRoomOpen] = useState(false);
+  const [warRoomTab, setWarRoomTab] = useState<"fronts" | "meddle" | "radar">("fronts");
+  const [warRoomTarget, setWarRoomTarget] = useState<string | null>(null);
+  const [warHotspots, setWarHotspots] = useState<WarRiskSummary[]>([]);
+  const [playerRisks, setPlayerRisks] = useState<Record<string, WarRiskSummary>>({});
+  const [activeNukes, setActiveNukes] = useState<NuclearAnimationEvent[]>([]);
+  const [nukeShake, setNukeShake] = useState(false);
+  const [autoBattleEnabled, setAutoBattleEnabled] = useState(true);
   const [quickDiploTarget, setQuickDiploTarget] = useState<string | null>(null);
   const [prefillOrderText, setPrefillOrderText] = useState<string | null>(null);
   const [prefillOrderCategory, setPrefillOrderCategory] = useState<string | null>(
@@ -183,6 +199,45 @@ export function GameWorkspace({
     }, 4000);
   }, []);
 
+  const soundEnabledRef = useRef(true);
+  useEffect(() => {
+    soundEnabledRef.current = gameSettings.audio.musicEnabled;
+  }, [gameSettings.audio.musicEnabled]);
+
+  const triggerNukeVisual = useCallback((op: WarOperationRecord) => {
+    const evt: NuclearAnimationEvent = {
+      id: `${op.id}-${Date.now()}`,
+      attackerCode: op.attackerCode,
+      defenderCode: op.defenderCode,
+      fromLng: op.fromLng,
+      fromLat: op.fromLat,
+      targetLng: op.targetLng,
+      targetLat: op.targetLat,
+      targetName: op.targetRegionName,
+      startedAt: Date.now(),
+    };
+    setActiveNukes((prev) => [...prev, evt]);
+    playWarActionSfx("nuke", soundEnabledRef.current);
+    setTimeout(() => {
+      setNukeShake(true);
+      setTimeout(() => setNukeShake(false), 1500);
+    }, 1520);
+  }, []);
+
+  const refreshWarData = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/sessions/${session.id}/war`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data.globalHotspots)) setWarHotspots(data.globalHotspots);
+      if (data.playerRisks) setPlayerRisks(data.playerRisks);
+    } catch {
+      // Ignore transient polling error
+    }
+  }, [session.id]);
+
   const refreshSession = useCallback(async () => {
     const res = await fetch(`/api/sessions/${session.id}`, {
       cache: "no-store",
@@ -193,7 +248,12 @@ export function GameWorkspace({
         setSession(data.session);
       }
     }
-  }, [session.id]);
+    void refreshWarData();
+  }, [session.id, refreshWarData]);
+
+  useEffect(() => {
+    void refreshWarData();
+  }, [refreshWarData, session.playerCountryCode]);
 
   // Real-time SSE listener for instant MCP tool updates & live connection badge
   useEffect(() => {
@@ -430,6 +490,97 @@ export function GameWorkspace({
       void refreshSession();
     });
 
+    source.addEventListener("war_operation_started", (e) => {
+      const trMode = localeRef.current === "tr";
+      try {
+        const parsed = JSON.parse((e as MessageEvent).data) as {
+          payload?: { operation?: WarOperationRecord };
+        };
+        const op = parsed.payload?.operation;
+        if (op && op.operationType !== "NUCLEAR_STRIKE") {
+          playWarActionSfx("launch", soundEnabledRef.current);
+          showToast(
+            trMode
+              ? `Askeri Harekat: ${op.attackerCode} → ${op.targetRegionName} (${op.defenderCode})`
+              : `Military Operation: ${op.attackerCode} → ${op.targetRegionName} (${op.defenderCode})`
+          );
+        }
+      } catch {
+        // Ignore parse issues
+      }
+      void refreshSession();
+    });
+
+    source.addEventListener("war_operation_updated", (e) => {
+      try {
+        const parsed = JSON.parse((e as MessageEvent).data) as {
+          payload?: { operation?: WarOperationRecord };
+        };
+        const op = parsed.payload?.operation;
+        if (op?.status === "CAPTURED") {
+          playWarActionSfx("capture", soundEnabledRef.current);
+        }
+      } catch {
+        // Ignore
+      }
+      void refreshSession();
+    });
+
+    source.addEventListener("nuclear_strike", (e) => {
+      const trMode = localeRef.current === "tr";
+      try {
+        const parsed = JSON.parse((e as MessageEvent).data) as {
+          payload?: { operation?: WarOperationRecord };
+        };
+        const op = parsed.payload?.operation;
+        if (op) {
+          triggerNukeVisual(op);
+          showToast(
+            trMode
+              ? `NÜKLEER SALDIRI: ${op.attackerCode} → ${op.targetRegionName}!`
+              : `NUCLEAR STRIKE: ${op.attackerCode} → ${op.targetRegionName}!`
+          );
+        }
+      } catch {
+        // Ignore
+      }
+      void refreshSession();
+    });
+
+    source.addEventListener("diplomatic_provocation", (e) => {
+      const trMode = localeRef.current === "tr";
+      try {
+        const parsed = JSON.parse((e as MessageEvent).data) as {
+          payload?: {
+            actorCode?: string;
+            targetCode?: string;
+            thirdCode?: string;
+            warErupted?: boolean;
+            probability?: number;
+          };
+        };
+        const p = parsed.payload;
+        if (p?.warErupted) {
+          playWarActionSfx("launch", soundEnabledRef.current);
+          showToast(
+            trMode
+              ? `SAVAŞ PATLAK VERDİ: ${p.targetCode} ↔ ${p.thirdCode ?? p.actorCode}!`
+              : `WAR ERUPTED: ${p.targetCode} ↔ ${p.thirdCode ?? p.actorCode}!`
+          );
+        } else if (p) {
+          playWarActionSfx("skirmish", soundEnabledRef.current);
+          showToast(
+            trMode
+              ? `Gerilim Yükseldi! Savaş Olasılığı: %${p.probability ?? 50}`
+              : `Tension Escalated! War Risk: ${p.probability ?? 50}%`
+          );
+        }
+      } catch {
+        // Ignore
+      }
+      void refreshSession();
+    });
+
     const syncHandler = () => {
       void refreshSession();
     };
@@ -440,7 +591,35 @@ export function GameWorkspace({
     return () => {
       source.close();
     };
-  }, [session.id, refreshSession, showToast]);
+  }, [session.id, refreshSession, showToast, triggerNukeVisual]);
+
+  // Live Real-Time Auto-Battle Ticker: marches armies, advances sieges, captures territory!
+  const activeWarOpsCount = (session.warOperations ?? []).filter((w) =>
+    ["MARCHING", "BESIEGING", "ACTIVE"].includes(w.status)
+  ).length;
+  useEffect(() => {
+    if (!autoBattleEnabled || activeWarOpsCount === 0) return;
+    let busyTick = false;
+    const id = window.setInterval(async () => {
+      if (busyTick) return;
+      busyTick = true;
+      try {
+        const res = await fetch(`/api/sessions/${session.id}/war`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "advance_battles", tickTensions: false }),
+        });
+        if (res.ok) {
+          void refreshSession();
+        }
+      } catch {
+        // Ignore transient interval error
+      } finally {
+        busyTick = false;
+      }
+    }, 3400);
+    return () => window.clearInterval(id);
+  }, [autoBattleEnabled, activeWarOpsCount, session.id, refreshSession]);
 
   // Listen for live global MCP connection status so Lock Gate unlocks automatically
   useEffect(() => {
@@ -571,6 +750,63 @@ export function GameWorkspace({
   const pendingAdvisorCount = (session.advisorChats ?? []).filter(
     (m) => m.senderRole === "PLAYER" && m.status === "PENDING_REPLY"
   ).length;
+  const activeWarOps = (session.warOperations ?? []).filter((op) =>
+    ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status)
+  );
+  const liveWarsCount =
+    session.diplomacies.filter((d) => d.status === "WAR").length +
+    activeWarOps.length;
+
+  const handleQuickWarAction = useCallback(
+    async (params: {
+      mode: "provoke" | "launch_operation" | "nuclear_strike";
+      actionType?: string;
+      operationType?: string;
+      targetCode: string;
+      targetRegionId?: string;
+    }) => {
+      const actor = session.playerCountryCode || "TUR";
+      const body =
+        params.mode === "provoke"
+          ? {
+              mode: "provoke",
+              actionType: params.actionType ?? "BORDER_SKIRMISH",
+              actorCode: actor,
+              targetCode: params.targetCode,
+              targetRegionId: params.targetRegionId,
+              locale,
+            }
+          : params.mode === "nuclear_strike"
+            ? {
+                mode: "nuclear_strike",
+                attackerCode: actor,
+                defenderCode: params.targetCode,
+                targetRegionId: params.targetRegionId,
+                locale,
+              }
+            : {
+                mode: "launch_operation",
+                attackerCode: actor,
+                defenderCode: params.targetCode,
+                targetRegionId: params.targetRegionId,
+                operationType: params.operationType ?? "TANK_BLITZ",
+                autoDeclareWar: true,
+                locale,
+              };
+
+      const res = await fetch(`/api/sessions/${session.id}/war`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.summary) showToast(data.summary);
+        void refreshSession();
+      }
+    },
+    [session.id, session.playerCountryCode, locale, refreshSession, showToast]
+  );
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
@@ -589,6 +825,10 @@ export function GameWorkspace({
               : "direct"
           )
         }
+        onOpenWarRoom={() => {
+          setWarRoomTab("fronts");
+          setWarRoomOpen(true);
+        }}
         onOpenAdvisor={() => setAdvisorOpen(true)}
         onOpenSaveModal={() => setSaveModalOpen(true)}
         onOpenSettingsModal={() => setSettingsModalOpen(true)}
@@ -599,6 +839,7 @@ export function GameWorkspace({
         debugDrawerOpen={debugDrawerOpen}
         pendingDiplomacyCount={pendingDiplomacyCount}
         pendingAdvisorCount={pendingAdvisorCount}
+        liveWarsCount={liveWarsCount}
       />
 
       {/* Full-bleed Map Workspace with Floating Translucent Panels */}
@@ -608,6 +849,14 @@ export function GameWorkspace({
           countries={session.countries}
           diplomacies={session.diplomacies}
           mapMarkers={session.mapMarkers ?? []}
+          warOperations={session.warOperations ?? []}
+          warHotspots={warHotspots}
+          playerRisks={playerRisks}
+          activeNukes={activeNukes}
+          onExpireNuke={(id) =>
+            setActiveNukes((prev) => prev.filter((item) => item.id !== id))
+          }
+          nukeShake={nukeShake}
           mapMode={mapMode}
           mapSettings={gameSettings.map}
           perspectiveCountryCode={activeCountryCode}
@@ -629,6 +878,11 @@ export function GameWorkspace({
               regions={session.regions}
               diplomacies={session.diplomacies}
               mapMarkers={session.mapMarkers ?? []}
+              warRiskWithPlayer={
+                activeCountry && activeCountry.code !== session.playerCountryCode
+                  ? playerRisks[activeCountry.code] ?? null
+                  : null
+              }
               onFocusPlayerCountry={() =>
                 setInspectedCountryCode(session.playerCountryCode)
               }
@@ -645,6 +899,12 @@ export function GameWorkspace({
                   ts: Date.now(),
                 })
               }
+              onQuickWarAction={handleQuickWarAction}
+              onOpenWarMeddle={(targetCode) => {
+                setWarRoomTarget(targetCode);
+                setWarRoomTab("meddle");
+                setWarRoomOpen(true);
+              }}
             />
           </div>
         )}
@@ -728,6 +988,28 @@ export function GameWorkspace({
 
             <button
               type="button"
+              onClick={() => {
+                setWarRoomTab("fronts");
+                setWarRoomOpen(true);
+              }}
+              title={
+                isTr
+                  ? "Canlı Savaş Odası, Kışkırtma & Nükleer Saldırı"
+                  : "Live War Room, Provocations & Nuclear Strikes"
+              }
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-rose-500/50 bg-[#0c1320]/90 px-3 text-xs font-semibold text-rose-300 shadow-xl backdrop-blur-md transition hover:bg-rose-950/60 cursor-pointer"
+            >
+              <Swords className={`h-4 w-4 ${liveWarsCount > 0 ? "animate-pulse" : ""}`} />
+              <span>{isTr ? "Savaş Odası" : "War Room"}</span>
+              {liveWarsCount > 0 && (
+                <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {liveWarsCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
               onClick={() => setShowOrderConsole((v) => !v)}
               className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border/90 bg-[#0c1320]/90 px-3 text-xs font-medium text-foreground shadow-xl backdrop-blur-md transition hover:border-primary/60 cursor-pointer"
             >
@@ -791,13 +1073,68 @@ export function GameWorkspace({
           </button>
         )}
 
-        {/* Live Toast Notification */}
-        {liveToast && (
-          <div className="pointer-events-none absolute left-1/2 top-4 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-primary/60 bg-[#0c121d]/95 px-4 py-2 text-xs font-medium text-amber-100 shadow-2xl backdrop-blur-md">
-            <Radio className="h-3.5 w-3.5 animate-pulse text-emerald-400" />
-            {liveToast}
-          </div>
-        )}
+        {/* Top-Center Live War Ticker & Notification Stack */}
+        <div className="pointer-events-none absolute left-1/2 top-3 z-30 flex -translate-x-1/2 flex-col items-center gap-2">
+          {(mapMode === "war" || activeWarOps.length > 0) && session.playerCountryCode && (
+            <div className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-full border border-rose-500/50 bg-[#090d16]/95 px-3.5 py-1.5 text-xs shadow-2xl backdrop-blur-md">
+              <span className="flex items-center gap-1.5 font-semibold text-rose-300">
+                <Activity
+                  className={`h-3.5 w-3.5 ${
+                    activeWarOps.length > 0 ? "animate-pulse text-rose-400" : "text-amber-300"
+                  }`}
+                />
+                {activeWarOps.length > 0
+                  ? `${activeWarOps[0].attackerCode} ⚔ ${activeWarOps[0].defenderCode} @ ${activeWarOps[0].targetRegionName} (%${activeWarOps[0].progress})`
+                  : isTr
+                    ? "Canlı Savaş Haritası Aktif"
+                    : "Live War Theater Active"}
+              </span>
+
+              {activeWarOps.length > 1 && (
+                <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-200">
+                  +{activeWarOps.length - 1}
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setAutoBattleEnabled((v) => !v)}
+                className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold transition cursor-pointer ${
+                  autoBattleEnabled
+                    ? "border-emerald-400/60 bg-emerald-500/20 text-emerald-300"
+                    : "border-white/20 bg-white/5 text-slate-300"
+                }`}
+              >
+                {autoBattleEnabled
+                  ? isTr
+                    ? "Oto-Savaş: AÇIK"
+                    : "Auto-Battle: ON"
+                  : isTr
+                    ? "Oto-Savaş: KAPALI"
+                    : "Auto-Battle: OFF"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setWarRoomTab(activeWarOps.length > 0 ? "fronts" : "meddle");
+                  setWarRoomOpen(true);
+                }}
+                className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[10px] font-bold text-white hover:bg-rose-500 cursor-pointer"
+              >
+                <Flame className="h-3 w-3" />
+                {isTr ? "Savaş & Kışkırt" : "War Room"}
+              </button>
+            </div>
+          )}
+
+          {liveToast && (
+            <div className="flex items-center gap-2 rounded-full border border-primary/60 bg-[#0c121d]/95 px-4 py-1.5 text-xs font-medium text-amber-100 shadow-2xl backdrop-blur-md">
+              <Radio className="h-3.5 w-3.5 animate-pulse text-emerald-400" />
+              {liveToast}
+            </div>
+          )}
+        </div>
 
         {/* Country Picker Overlay when starting a fresh campaign */}
         {!session.playerCountryCode && (
@@ -905,6 +1242,26 @@ export function GameWorkspace({
         onClose={() => setDebugDrawerOpen(false)}
         session={session}
         selectedRegionId={selectedRegionId}
+      />
+
+      <WarRoomModal
+        open={warRoomOpen}
+        onOpenChange={setWarRoomOpen}
+        sessionId={session.id}
+        playerCountryCode={session.playerCountryCode}
+        countries={session.countries}
+        regions={session.regions}
+        warOperations={session.warOperations ?? []}
+        warHotspots={warHotspots}
+        playerRisks={playerRisks}
+        autoBattleEnabled={autoBattleEnabled}
+        onToggleAutoBattle={setAutoBattleEnabled}
+        initialTab={warRoomTab}
+        initialTargetCode={warRoomTarget}
+        onWarUpdated={() => {
+          void refreshSession();
+        }}
+        onReplayNuke={(op) => triggerNukeVisual(op)}
       />
 
       {!(globalMcpStatus.connected || (session.mcpStatus?.connected ?? false)) && (

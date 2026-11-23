@@ -34,6 +34,7 @@ const STDIO_LOCALE_COPY = {
       "diplomatic-councils": { title: "Diplomatic Councils", desc: "Çok uluslu konseyler, koalisyonlar ve hak savunusu zirveleri." },
       "map-markers": { title: "Map Facilities & Beacons", desc: "Şehir veya eyalet bazında haritada kurulan animasyonlu tesisler, üsler ve kriz işaretleri." },
       "advisor-chat": { title: "AI Advisor & Strategy Chat", desc: "Oyuncunun yapay zeka ile fikir aldığı ve mesajlaştığı strateji danışman odası." },
+      "war-theater": { title: "Live War Theater & Probabilities", desc: "Aktif savaşlar, haritada ilerleyen animasyonlu kuşatmalar, tank/piyade harekatları ve savaş çıkma olasılıkları." },
     },
     tools: {
       list_game_sessions: { title: "List Game Sessions", description: "Mur4History sunucusundaki aktif oyun oturumlarını, tur durumlarını, aktif dili, tarayıcı sekmesini ve seçili ülkeleri listeler." },
@@ -50,6 +51,9 @@ const STDIO_LOCALE_COPY = {
       reply_diplomatic_council: { title: "Post Multi-Leader Debate Responses in Council", description: "Konsey odasında birden fazla liderin birbirine ve oyuncuya karşı argümanlarını ekler." },
       manage_map_markers: { title: "Manage Map Facilities, Landmarks & Animated Beacons", description: "Haritada belirli bir şehirde veya eyalette kurulan fabrika, askeri üs, tersane, demiryolu, nükleer tesis veya kriz noktasını animasyonlu nokta olarak oluşturur, günceller veya kaldırır." },
       reply_advisor_chat: { title: "Reply in AI Strategy Advisor & Brainstorm Chat", description: "Oyuncunun Danışman & Fikir Odası'nda sorduğu sorulara ve fikir isteklerine yanıt verir, isterse tek tıkla emre dönüşen suggested_orders kartları önerir (turu ilerletmez)." },
+      provoke_country: { title: "Ülke Kışkırt / Üçüncü Ülkeleri Birbirine Düşür", description: "Sınır tacizi, diplomatik hakaret, isyancı desteği veya sahte bayrak operasyonuyla savaş olasılığını yükseltir ve ülkeler arasında gerçek savaş başlatır." },
+      trigger_war_operation: { title: "Canlı Animasyonlu Kuşatma / Taarruz Başlat", description: "Haritada hedef eyalete doğru yürüyen askerler, zırhlı tanklar, hava akını veya deniz çıkarması harekatı başlatır/ilerletir." },
+      launch_nuclear_strike: { title: "Stratejik Nükleer Saldırı Düzenle", description: "Seçili hedef eyalete/şehre balistik füze rotası, mantar bulutu animasyonu, krater işareti ve ağır hasar ile nükleer başlık fırlatır." },
       advance_turn: { title: "Advance Turn & Snapshot World", description: "Turu sonlandırır, takvimi ilerletir, bekleyen emirleri temizler ve geri alma snapshot'ı oluşturur." },
     },
     prompt: { title: "Mur4History Game Master Directive (Türkçe)", description: "Bağlı yapay zekaya Game Master simülasyon kurallarını Türkçe yükler." },
@@ -69,6 +73,7 @@ const STDIO_LOCALE_COPY = {
       "diplomatic-councils": { title: "Diplomatic Councils", desc: "Multi-nation councils, coalitions, and diplomatic protest summits." },
       "map-markers": { title: "Map Facilities & Beacons", desc: "Animated city/province factories, bases, shipyards, R&D centers, and crisis beacons." },
       "advisor-chat": { title: "AI Advisor & Strategy Chat", desc: "Live strategy advisor brainstorm room with one-click order suggestions." },
+      "war-theater": { title: "Live War Theater & Probabilities", desc: "Active wars, animated sieges, tank/infantry operations, tension scores, and outbreak probabilities." },
     },
     tools: {
       list_game_sessions: { title: "List Game Sessions", description: "Lists active Mur4History game sessions, turn states, UI language, active browser tab, and selected nations." },
@@ -85,6 +90,9 @@ const STDIO_LOCALE_COPY = {
       reply_diplomatic_council: { title: "Post Multi-Leader Debate Responses in Council", description: "Posts multi-leader debate statements responding to the player and each other inside a council." },
       manage_map_markers: { title: "Manage Map Facilities, Landmarks & Animated Beacons", description: "Creates, updates, or removes animated facilities (factories, military bases, shipyards, R&D hubs, crises) on the map." },
       reply_advisor_chat: { title: "Reply in AI Strategy Advisor & Brainstorm Chat", description: "Answers player questions in the Strategy Advisor room with optional one-click suggested_orders cards (does NOT advance turn)." },
+      provoke_country: { title: "Provoke Nation / Incite Third-Party War", description: "Escalates tension and war outbreak probability via skirmishes, insults, sponsored rebels, or third-party war instigation." },
+      trigger_war_operation: { title: "Launch or Advance Animated Siege / Operation", description: "Deploys animated marching infantry, tank blitz, air strikes, or naval invasions on the live world map." },
+      launch_nuclear_strike: { title: "Launch Strategic Nuclear Strike", description: "Launches a strategic nuclear warhead with missile trajectory, mushroom cloud animation, and fallout crater marker." },
       advance_turn: { title: "Advance Turn & Snapshot World", description: "Finalizes the turn, advances the calendar, clears pending orders, and captures a rollback snapshot." },
     },
     prompt: { title: "Mur4History Game Master Directive (English)", description: "Loads full Game Master simulation rules and English output instructions into the connected AI." },
@@ -1085,6 +1093,100 @@ stdioToolHandles.set(
       const { client } = await getConnectedClient(session_id);
       return client.callTool({
         name: "reply_advisor_chat",
+        arguments: args,
+      });
+    }
+  )
+);
+
+stdioToolHandles.set(
+  "provoke_country",
+  server.registerTool(
+    "provoke_country",
+    {
+      ...getLocaleCopy().tools.provoke_country,
+      inputSchema: {
+        actor_country_id: z.string(),
+        target_country_id: z.string(),
+        instigate_with_country_id: z.string().optional(),
+        action_type: z.enum([
+          "BORDER_SKIRMISH",
+          "DIPLOMATIC_INSULT",
+          "SPONSOR_REBELS",
+          "INCITE_THIRD_PARTY_WAR",
+          "DECLARE_WAR",
+        ]),
+        target_region_id: z.string().optional(),
+        custom_note: z.string().optional(),
+        session_id: z.string().optional(),
+      },
+    },
+    async ({ session_id, ...args }) => {
+      const { client } = await getConnectedClient(session_id);
+      return client.callTool({
+        name: "provoke_country",
+        arguments: args,
+      });
+    }
+  )
+);
+
+stdioToolHandles.set(
+  "trigger_war_operation",
+  server.registerTool(
+    "trigger_war_operation",
+    {
+      ...getLocaleCopy().tools.trigger_war_operation,
+      inputSchema: {
+        mode: z.enum(["LAUNCH", "ADVANCE"]).default("LAUNCH"),
+        attacker_country_id: z.string().optional(),
+        defender_country_id: z.string().optional(),
+        target_region_id: z.string().optional(),
+        operation_type: z
+          .enum([
+            "SIEGE",
+            "ASSAULT",
+            "TANK_BLITZ",
+            "AIR_STRIKE",
+            "NAVAL_INVASION",
+            "REBEL_UPRISING",
+          ])
+          .optional(),
+        unit_type: z.enum(["INFANTRY", "ARMOR", "AIR", "NAVAL"]).optional(),
+        intensity: z.number().min(10).max(100).optional(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        session_id: z.string().optional(),
+      },
+    },
+    async ({ session_id, ...args }) => {
+      const { client } = await getConnectedClient(session_id);
+      return client.callTool({
+        name: "trigger_war_operation",
+        arguments: args,
+      });
+    }
+  )
+);
+
+stdioToolHandles.set(
+  "launch_nuclear_strike",
+  server.registerTool(
+    "launch_nuclear_strike",
+    {
+      ...getLocaleCopy().tools.launch_nuclear_strike,
+      inputSchema: {
+        attacker_country_id: z.string(),
+        defender_country_id: z.string(),
+        target_region_id: z.string().optional(),
+        title: z.string().optional(),
+        session_id: z.string().optional(),
+      },
+    },
+    async ({ session_id, ...args }) => {
+      const { client } = await getConnectedClient(session_id);
+      return client.callTool({
+        name: "launch_nuclear_strike",
         arguments: args,
       });
     }

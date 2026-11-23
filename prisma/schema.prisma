@@ -47,6 +47,7 @@ model GameSession {
   leaderChats          LeaderChatMessage[]
   councils             DiplomacyCouncil[]
   mapMarkers           MapMarker[]
+  warOperations        WarOperation[]
   advisorChats         AdvisorChatMessage[]
   snapshots            TurnSnapshot[]
 }
@@ -99,6 +100,7 @@ model DiplomacyRelation {
   countryA    String
   countryB    String
   status      String      @default("NEUTRAL")
+  tension     Int         @default(20)
   treatyName  String?
   updatedTurn Int         @default(1)
 
@@ -260,4 +262,35 @@ model AdvisorChatMessage {
 
   @@index([sessionId, createdAt])
   @@index([sessionId, status])
+}
+
+model WarOperation {
+  id               String      @id @default(cuid())
+  sessionId        String
+  session          GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  operationType    String      @default("SIEGE")
+  unitType         String      @default("INFANTRY")
+  attackerCode     String
+  defenderCode     String
+  fromRegionId     String?
+  fromLat          Float
+  fromLng          Float
+  targetRegionId   String
+  targetRegionName String
+  targetLat        Float
+  targetLng        Float
+  intensity        Int         @default(60)
+  progress         Int         @default(0)
+  attackerLosses   Int         @default(0)
+  defenderLosses   Int         @default(0)
+  status           String      @default("MARCHING")
+  title            String
+  description      String
+  turnNumber       Int
+  gameDate         String
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([sessionId, status])
+  @@index([sessionId, createdAt])
 }

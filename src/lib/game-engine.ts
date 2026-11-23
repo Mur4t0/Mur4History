@@ -20,6 +20,10 @@ import { expandScenarioToWorld, type ScenarioConfig } from "@/lib/scenarios";
 import { getAllWorldRegions } from "@/lib/geo-regions";
 import { resolveMarkerCoordinates } from "@/lib/geo-cities";
 import {
+  advanceLiveWarOperations,
+  launchWarOperation,
+} from "@/lib/war-engine";
+import {
   advanceDateByInterval,
   advanceDateMonths,
   clamp,
@@ -63,8 +67,31 @@ export interface SessionSnapshotPayload {
     countryA: string;
     countryB: string;
     status: string;
+    tension?: number;
     treatyName: string | null;
     updatedTurn: number;
+  }>;
+  warOperations?: Array<{
+    operationType: string;
+    unitType: string;
+    attackerCode: string;
+    defenderCode: string;
+    fromRegionId: string | null;
+    fromLat: number;
+    fromLng: number;
+    targetRegionId: string;
+    targetRegionName: string;
+    targetLat: number;
+    targetLng: number;
+    intensity: number;
+    progress: number;
+    attackerLosses: number;
+    defenderLosses: number;
+    status: string;
+    title: string;
+    description: string;
+    turnNumber: number;
+    gameDate: string;
   }>;
   mapMarkers?: Array<{
     countryCode: string;
@@ -84,13 +111,14 @@ export interface SessionSnapshotPayload {
 }
 
 async function buildSnapshotJson(sessionId: string): Promise<string> {
-  const [session, countries, regions, diplomacies, mapMarkers] =
+  const [session, countries, regions, diplomacies, mapMarkers, warOperations] =
     await Promise.all([
       prisma.gameSession.findUniqueOrThrow({ where: { id: sessionId } }),
       prisma.country.findMany({ where: { sessionId } }),
       prisma.regionOwnership.findMany({ where: { sessionId } }),
       prisma.diplomacyRelation.findMany({ where: { sessionId } }),
       prisma.mapMarker.findMany({ where: { sessionId } }),
+      prisma.warOperation.findMany({ where: { sessionId } }),
     ]);
 
   const payload: SessionSnapshotPayload = {
@@ -127,8 +155,31 @@ async function buildSnapshotJson(sessionId: string): Promise<string> {
       countryA: d.countryA,
       countryB: d.countryB,
       status: d.status,
+      tension: d.tension,
       treatyName: d.treatyName,
       updatedTurn: d.updatedTurn,
+    })),
+    warOperations: warOperations.map((wo) => ({
+      operationType: wo.operationType,
+      unitType: wo.unitType,
+      attackerCode: wo.attackerCode,
+      defenderCode: wo.defenderCode,
+      fromRegionId: wo.fromRegionId,
+      fromLat: wo.fromLat,
+      fromLng: wo.fromLng,
+      targetRegionId: wo.targetRegionId,
+      targetRegionName: wo.targetRegionName,
+      targetLat: wo.targetLat,
+      targetLng: wo.targetLng,
+      intensity: wo.intensity,
+      progress: wo.progress,
+      attackerLosses: wo.attackerLosses,
+      defenderLosses: wo.defenderLosses,
+      status: wo.status,
+      title: wo.title,
+      description: wo.description,
+      turnNumber: wo.turnNumber,
+      gameDate: wo.gameDate,
     })),
     mapMarkers: mapMarkers.map((m) => ({
       countryCode: m.countryCode,
@@ -387,6 +438,10 @@ export async function getFullSessionState(sessionId: string) {
       },
       mapMarkers: {
         orderBy: [{ turnNumber: "desc" }, { createdAt: "desc" }],
+      },
+      warOperations: {
+        orderBy: [{ createdAt: "desc" }],
+        take: 80,
       },
       advisorChats: {
         orderBy: { createdAt: "asc" },
@@ -773,6 +828,22 @@ export async function toolTransferTerritory(params: {
     where: { sessionId, regionId: { in: existingRegions.map((r) => r.regionId) } },
   });
 
+  // Resolve any active sieges targeting captured provinces cleanly
+  if (existingRegions.length > 0) {
+    await prisma.warOperation.updateMany({
+      where: {
+        sessionId,
+        targetRegionId: { in: existingRegions.map((r) => r.regionId) },
+        attackerCode: ownerCode,
+        status: { in: ["MARCHING", "BESIEGING", "ACTIVE"] },
+      },
+      data: {
+        status: "CAPTURED",
+        progress: 100,
+      },
+    });
+  }
+
   emitSessionEvent(sessionId, "territory_transferred", {
     regionIds: updated.map((r) => r.regionId),
     newOwnerCountryCode: ownerCode,
@@ -780,6 +851,32 @@ export async function toolTransferTerritory(params: {
     strategicStatus: nextStatus,
     turnNumber: session.turnNumber,
   });
+
+  // Spawn visual wartime blitz operation toward the first transferred province if wartime conquest
+  if (isWartime && existingRegions[0]) {
+    const prevOwner = existingRegions[0].ownerCountryCode;
+    if (prevOwner && prevOwner !== ownerCode) {
+      const blitz = await launchWarOperation({
+        sessionId,
+        attackerCode: ownerCode,
+        defenderCode: prevOwner,
+        targetRegionId: existingRegions[0].regionId,
+        operationType: "TANK_BLITZ",
+        unitType: "ARMOR",
+        intensity: 85,
+        title: `${ownerCode} → ${existingRegions[0].regionName}`,
+        description: reason,
+        autoDeclareWar: false,
+        skipAiWake: true,
+      }).catch(() => null);
+      if (blitz) {
+        await prisma.warOperation.update({
+          where: { id: blitz.id },
+          data: { status: "CAPTURED", progress: 100 },
+        }).catch(() => undefined);
+      }
+    }
+  }
 
   return {
     transferredCount: updated.length,
@@ -888,10 +985,22 @@ export async function toolManageDiplomacy(params: {
     where: { sessionId_countryA_countryB: { sessionId, countryA: a, countryB: b } },
   });
 
+  const relationTension =
+    relation_status === "WAR"
+      ? 100
+      : relation_status === "EMBARGO"
+        ? 65
+        : relation_status === "ALLIANCE"
+          ? 8
+          : relation_status === "NON_AGGRESSION"
+            ? 14
+            : 22;
+
   const relation = await prisma.diplomacyRelation.upsert({
     where: { sessionId_countryA_countryB: { sessionId, countryA: a, countryB: b } },
     update: {
       status: relation_status,
+      tension: relationTension,
       treatyName: treaty_name?.trim() || null,
       updatedTurn: session.turnNumber,
     },
@@ -900,6 +1009,7 @@ export async function toolManageDiplomacy(params: {
       countryA: a,
       countryB: b,
       status: relation_status,
+      tension: relationTension,
       treatyName: treaty_name?.trim() || null,
       updatedTurn: session.turnNumber,
     },
@@ -932,6 +1042,35 @@ export async function toolManageDiplomacy(params: {
         data: { infamy: clamp(attacker.infamy + 10, 0, 100) },
       });
     }
+    // Auto-launch animated frontier offensive on war declaration
+    await launchWarOperation({
+      sessionId,
+      attackerCode: codeA,
+      defenderCode: codeB,
+      operationType: "TANK_BLITZ",
+      unitType: "ARMOR",
+      intensity: 78,
+      autoDeclareWar: false,
+      skipAiWake: true,
+    }).catch(() => undefined);
+  } else if (
+    (relation_status === "ALLIANCE" ||
+      relation_status === "NON_AGGRESSION" ||
+      relation_status === "NEUTRAL") &&
+    existing?.status === "WAR"
+  ) {
+    // End active frontlines when peace treaty is signed
+    await prisma.warOperation.updateMany({
+      where: {
+        sessionId,
+        status: { in: ["MARCHING", "BESIEGING", "ACTIVE"] },
+        OR: [
+          { attackerCode: codeA, defenderCode: codeB },
+          { attackerCode: codeB, defenderCode: codeA },
+        ],
+      },
+      data: { status: "REPELLED" },
+    });
   }
 
   emitSessionEvent(sessionId, "diplomacy_updated", {
@@ -1164,6 +1303,12 @@ export async function toolAdvanceTurn(params: {
     summary: turn_summary.trim(),
   });
 
+  // Advance live battlefronts and evaluate autonomous geopolitical tensions
+  await advanceLiveWarOperations({
+    sessionId,
+    tickTensions: true,
+  }).catch(() => undefined);
+
   const t = getMcpToolInstructions(getActiveMcpLocale(sessionId));
   return {
     turnNumber: nextTurn,
@@ -1204,6 +1349,7 @@ export async function rollbackSessionToTurn(
     await tx.regionOwnership.deleteMany({ where: { sessionId } });
     await tx.diplomacyRelation.deleteMany({ where: { sessionId } });
     await tx.mapMarker.deleteMany({ where: { sessionId } });
+    await tx.warOperation.deleteMany({ where: { sessionId } });
     await tx.pendingOrder.deleteMany({
       where: { sessionId, turnNumber: { gte: targetTurnNumber } },
     });
@@ -1265,6 +1411,15 @@ export async function rollbackSessionToTurn(
         data: parsed.mapMarkers.map((mk) => ({
           sessionId,
           ...mk,
+        })),
+      });
+    }
+
+    if (parsed.warOperations && parsed.warOperations.length > 0) {
+      await tx.warOperation.createMany({
+        data: parsed.warOperations.map((wo) => ({
+          sessionId,
+          ...wo,
         })),
       });
     }

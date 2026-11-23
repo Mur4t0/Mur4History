@@ -16,6 +16,10 @@ export type SessionRealtimeEventType =
   | "leader_chat_reply"
   | "council_updated"
   | "map_marker_updated"
+  | "war_operation_started"
+  | "war_operation_updated"
+  | "nuclear_strike"
+  | "diplomatic_provocation"
   | "advisor_chat_updated"
   | "advisor_chat_reply"
   | "player_action_triggered"
@@ -35,6 +39,7 @@ export interface PlayerActionTrigger {
     | "ORDER_QUEUED"
     | "LEADER_CHAT"
     | "COUNCIL_ACTION"
+    | "WAR_ACTION"
     | "ADVISOR_CHAT"
     | "MANUAL_WAKE";
   summary: string;

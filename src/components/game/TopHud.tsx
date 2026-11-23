@@ -51,6 +51,7 @@ interface TopHudProps {
   onTimeJumpChange: (interval: TimeJumpInterval) => void;
   onOpenMcpModal: () => void;
   onOpenLeaderChat: () => void;
+  onOpenWarRoom?: () => void;
   onOpenAdvisor: () => void;
   onOpenSaveModal: () => void;
   onOpenSettingsModal: () => void;
@@ -61,6 +62,7 @@ interface TopHudProps {
   debugDrawerOpen: boolean;
   pendingDiplomacyCount?: number;
   pendingAdvisorCount?: number;
+  liveWarsCount?: number;
 }
 
 export function TopHud({
@@ -71,6 +73,7 @@ export function TopHud({
   onTimeJumpChange,
   onOpenMcpModal,
   onOpenLeaderChat,
+  onOpenWarRoom,
   onOpenAdvisor,
   onOpenSaveModal,
   onOpenSettingsModal,
@@ -81,6 +84,7 @@ export function TopHud({
   debugDrawerOpen,
   pendingDiplomacyCount = 0,
   pendingAdvisorCount = 0,
+  liveWarsCount = 0,
 }: TopHudProps) {
   const { locale } = useLocale();
   const isEn = locale === "en";
@@ -256,6 +260,19 @@ export function TopHud({
           <ShieldAlert className="h-3.5 w-3.5" />
           {isEn ? "Threat" : "Tehdit"}
         </button>
+        <button
+          type="button"
+          data-testid="map-mode-war"
+          onClick={() => onMapModeChange("war")}
+          className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition cursor-pointer ${
+            mapMode === "war"
+              ? "bg-rose-950/80 text-rose-300 shadow-sm ring-1 ring-rose-500/40"
+              : "text-muted-foreground hover:text-rose-300"
+          }`}
+        >
+          <Flame className={`h-3.5 w-3.5 ${liveWarsCount > 0 ? "text-rose-400 animate-pulse" : ""}`} />
+          {isEn ? "Live War" : "Canlı Savaş"}
+        </button>
       </div>
 
       {/* Right: MCP Status, Language Switch, & Actions */}
@@ -313,6 +330,23 @@ export function TopHud({
                 </span>
               )}
             </Button>
+            {onOpenWarRoom && (
+              <Button
+                size="sm"
+                variant="outline"
+                data-testid="open-war-room-btn"
+                onClick={onOpenWarRoom}
+                className="border-rose-500/45 bg-rose-950/30 text-rose-300 hover:bg-rose-900/40"
+              >
+                <Swords className={`h-3.5 w-3.5 ${liveWarsCount > 0 ? "animate-pulse" : ""}`} />
+                {isEn ? "War Room" : "Savaş & Kışkırt"}
+                {liveWarsCount > 0 && (
+                  <span className="ml-1 rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white">
+                    {liveWarsCount}
+                  </span>
+                )}
+              </Button>
+            )}
           </>
         )}
 
