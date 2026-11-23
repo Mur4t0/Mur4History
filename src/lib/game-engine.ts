@@ -9,11 +9,13 @@ import {
   localizeWorldStateFields,
 } from "@/lib/mcp-locale";
 import {
+  consumePendingPlayerTriggers,
   emitSessionEvent,
   getActiveMcpLocale,
   getMcpConnectionStatus,
   markBrowserSessionActive,
   notifyPlayerAction,
+  peekPendingPlayerTriggers,
   waitForPlayerActionEvent,
 } from "@/lib/realtime";
 import { expandScenarioToWorld, type ScenarioConfig } from "@/lib/scenarios";
@@ -1394,6 +1396,7 @@ export async function toolAdvanceTurn(params: {
   await advanceLiveWarOperations({
     sessionId,
     tickTensions: true,
+    skipAiWake: true,
   }).catch(() => undefined);
 
   const t = getMcpToolInstructions(getActiveMcpLocale(sessionId));
@@ -2668,6 +2671,7 @@ export async function getPendingActionSnapshot(sessionId: string) {
     councils,
     mapMarkers,
     advisorChat,
+    warOps,
   ] = await Promise.all([
     readWorldStateResource(sessionId),
     readPendingOrdersResource(sessionId),
@@ -2675,6 +2679,11 @@ export async function getPendingActionSnapshot(sessionId: string) {
     readDiplomaticCouncilsResource(sessionId),
     readMapMarkersResource(sessionId),
     readAdvisorChatResource(sessionId),
+    prisma.warOperation.findMany({
+      where: { sessionId },
+      orderBy: { updatedAt: "desc" },
+      take: 14,
+    }),
   ]);
 
   const pendingChatThreads = leaderChats.threads.filter(
@@ -2687,12 +2696,48 @@ export async function getPendingActionSnapshot(sessionId: string) {
     (m) => m.role === "PLAYER" && m.status === "PENDING_REPLY"
   );
   const awaitingTurn = Boolean(worldState.awaitingAiSimulation);
+  const bufferedTriggers = peekPendingPlayerTriggers(sessionId, false);
+  const pendingWarEvents = bufferedTriggers.filter(
+    (t) => t.triggerType === "WAR_ACTION"
+  );
+
+  const activeWarOperations = warOps
+    .filter((w) => ["MARCHING", "BESIEGING", "ACTIVE"].includes(w.status))
+    .map((w) => ({
+      id: w.id,
+      type: w.operationType,
+      attacker: w.attackerCode,
+      defender: w.defenderCode,
+      region_id: w.targetRegionId,
+      region_name: w.targetRegionName,
+      status: w.status,
+      progress: w.progress,
+    }));
+
+  const recentWarOutcomes = warOps
+    .filter((w) =>
+      ["CAPTURED", "REPELLED", "UPRISING", "AGITATED", "DETONATED"].includes(
+        w.status
+      )
+    )
+    .slice(0, 6)
+    .map((w) => ({
+      id: w.id,
+      type: w.operationType,
+      attacker: w.attackerCode,
+      defender: w.defenderCode,
+      region_id: w.targetRegionId,
+      region_name: w.targetRegionName,
+      outcome: w.status,
+      updated_at: w.updatedAt.toISOString(),
+    }));
 
   const hasAnyAction =
     awaitingTurn ||
     pendingChatThreads.length > 0 ||
     pendingCouncils.length > 0 ||
-    pendingAdvisorMessages.length > 0;
+    pendingAdvisorMessages.length > 0 ||
+    bufferedTriggers.length > 0;
 
   return {
     preferredLanguage: locale,
@@ -2705,6 +2750,10 @@ export async function getPendingActionSnapshot(sessionId: string) {
     pendingLeaderChats: pendingChatThreads,
     pendingCouncils,
     pendingAdvisorMessages,
+    pendingWarEvents,
+    activeWarOperations,
+    recentWarOutcomes,
+    bufferedTriggers,
     existingMapMarkers: mapMarkers.markers,
   };
 }
@@ -2728,26 +2777,40 @@ export async function toolWaitForPlayerAction(params: {
 
   const immediate = await getPendingActionSnapshot(sessionId);
   if (immediate.hasAnyAction) {
-    const tImmediate = getMcpToolInstructions(getActiveMcpLocale(sessionId));
+    const consumed = consumePendingPlayerTriggers(sessionId, false);
+    const activeLocale = getActiveMcpLocale(sessionId);
+    const tImmediate = getMcpToolInstructions(activeLocale);
+    const inferredType = immediate.awaitingTurn
+      ? "TURN_COMPLETED"
+      : immediate.pendingAdvisorMessages.length > 0
+        ? "ADVISOR_CHAT"
+        : immediate.pendingLeaderChats.length > 0
+          ? "LEADER_CHAT"
+          : immediate.pendingCouncils.length > 0
+            ? "COUNCIL_ACTION"
+            : (consumed[consumed.length - 1]?.triggerType ?? "WAR_ACTION");
+
+    const summary =
+      consumed.length > 0
+        ? consumed.map((c) => c.summary).join(" | ")
+        : tImmediate.waitImmediateSummary;
+
     return {
       ok: true,
       triggered: true,
       status: "IMMEDIATE_ACTION_READY",
       trigger: {
         sessionId,
-        triggerType: immediate.awaitingTurn
-          ? "TURN_COMPLETED"
-          : immediate.pendingAdvisorMessages.length > 0
-            ? "ADVISOR_CHAT"
-            : immediate.pendingLeaderChats.length > 0
-              ? "LEADER_CHAT"
-              : "COUNCIL_ACTION",
-        summary: tImmediate.waitImmediateSummary,
+        triggerType: inferredType,
+        summary,
         timestamp: new Date().toISOString(),
       },
       ...immediate,
       next_required_tool: "wait_for_player_action",
-      instruction: tImmediate.waitImmediateInstruction,
+      instruction:
+        inferredType === "WAR_ACTION"
+          ? tImmediate.waitWarActionInstruction
+          : tImmediate.waitImmediateInstruction,
     };
   }
 
@@ -2767,6 +2830,7 @@ export async function toolWaitForPlayerAction(params: {
 
   if (trigger) {
     const activeSnapshot = await getPendingActionSnapshot(trigger.sessionId);
+    consumePendingPlayerTriggers(trigger.sessionId, false);
     const tReceived = getMcpToolInstructions(
       getActiveMcpLocale(trigger.sessionId)
     );
@@ -2777,7 +2841,10 @@ export async function toolWaitForPlayerAction(params: {
       trigger,
       ...activeSnapshot,
       next_required_tool: "wait_for_player_action",
-      instruction: tReceived.waitReceivedInstruction,
+      instruction:
+        trigger.triggerType === "WAR_ACTION"
+          ? tReceived.waitWarActionInstruction
+          : tReceived.waitReceivedInstruction,
     };
   }
 

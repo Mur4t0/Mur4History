@@ -553,6 +553,53 @@ async function run() {
     );
     console.log("Live Defender Counter-Attack, Garrison Siege Repulsion (REPELLED) & Covert Envoy Uprising verified!");
 
+    // Now launch a real armored siege against rebel-weakened BGR via Browser UI, advance until CAPTURED while AI is NOT actively blocking,
+    // and verify wait_for_player_action wakes up IMMEDIATELY via buffered WAR_ACTION queue!
+    const conquestLaunchRes = await fetch(`${BASE}/api/sessions/${sessionId}/war`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "launch_operation",
+        attackerCode: "TUR",
+        defenderCode: "BGR",
+        targetRegionId: "BGR",
+        operationType: "TANK_BLITZ",
+        intensity: 85,
+      }),
+    });
+    assert.equal(conquestLaunchRes.status, 201);
+
+    let bgrCaptured = false;
+    for (let step = 0; step < 8; step++) {
+      const advRes = await fetch(`${BASE}/api/sessions/${sessionId}/war`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "advance_battles", tickTensions: false }),
+      });
+      const advJson = await advRes.json();
+      if ((advJson.capturedRegions ?? []).some((r) => r.regionId === "BGR")) {
+        bgrCaptured = true;
+        break;
+      }
+    }
+    assert.ok(bgrCaptured, "Expected weakened CONTESTED BGR to fall to real armored siege!");
+
+    const wakeAfterCaptureRes = await mcpClient.callTool({
+      name: "wait_for_player_action",
+      arguments: { timeout_seconds: 2 },
+    });
+    const wakeAfterCaptureJson = JSON.parse(wakeAfterCaptureRes.content[0].text);
+    assert.equal(wakeAfterCaptureJson.triggered, true);
+    assert.equal(wakeAfterCaptureJson.status, "IMMEDIATE_ACTION_READY");
+    assert.equal(wakeAfterCaptureJson.trigger.triggerType, "WAR_ACTION");
+    assert.ok(
+      (wakeAfterCaptureJson.recentWarOutcomes ?? []).some(
+        (o) => o.outcome === "CAPTURED" && o.region_id === "BGR"
+      ),
+      "Expected recentWarOutcomes to contain CAPTURED BGR"
+    );
+    console.log("Instant Buffered WAR_ACTION Wakeup on Province Capture verified!");
+
     // Verify player cannot hijack foreign nation military via UI /war route (403)
     const hijackRes = await fetch(`${BASE}/api/sessions/${sessionId}/war`, {
       method: "POST",

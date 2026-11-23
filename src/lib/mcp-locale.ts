@@ -93,6 +93,7 @@ export interface McpToolInstructionSet {
   waitImmediateSummary: string;
   waitImmediateInstruction: string;
   waitReceivedInstruction: string;
+  waitWarActionInstruction: string;
   waitContinueInstruction: string;
   waitingProgress: string;
   readContextNote: string;
@@ -127,6 +128,8 @@ const TOOL_INSTRUCTIONS_TR: McpToolInstructionSet = {
     "OYUNCU HAMLESİ HAZIR! (Dil: TÜRKÇE — tüm yanıt ve olayları Türkçe üret.) 1) pendingAdvisorMessages varsa reply_advisor_chat ile stratejik fikir/öneri mesajı (ve suggested_orders) yanıtla — turu ilerletme! 2) pendingLeaderChats varsa reply_leader_chat ile yanıtla. 3) pendingCouncils varsa reply_diplomatic_council ile yanıtla. 4) awaitingTurn === true veya pendingOrders varsa emirleri simüle et (transfer_territory, manage_map_markers, update_country_stats, manage_diplomacy, convene_diplomatic_council, publish_world_event) ve advance_turn ile turu ilerlet. 5) TÜM İŞLEMLER BİTER BİTMEZ boşuna token yakmamak için DERHAL wait_for_player_action aracını çağırarak süresiz beklemeye geç!",
   waitReceivedInstruction:
     "OYUNCU WEB ARAYÜZÜNDE BUTONA BASTI! (Dil: TÜRKÇE — tüm yanıt ve olayları Türkçe üret.) 1) pendingAdvisorMessages varsa reply_advisor_chat ile sohbet yanıtı + suggested_orders ver (turu ilerletme!). 2) pendingLeaderChats varsa reply_leader_chat ile lider ağzından yanıtla. 3) pendingCouncils varsa reply_diplomatic_council ile konseyde tartış. 4) awaitingTurn === true ise emirleri simüle et ve en son advance_turn çağır. 5) İŞİN BİTER BİTMEZ süresiz beklemeye geçmek ve bağlantıyı açık tutmak için DERHAL tekrar wait_for_player_action aracını çağır!",
+  waitWarActionInstruction:
+    "ACİL CANLI SAVAŞ / FETİH / İSYAN OLAYI! (Dil: TÜRKÇE — 'Turu Tamamla' beklemeden ŞİMDİ tepki ver!) trigger.summary, pendingWarEvents ve recentWarOutcomes içindeki olaya göre: 1) Bir şehir/ülke düştüyse (CAPTURED) veya savaş açıldıysa, ilgili devletlere ve varsa NATO/Varşova/İttifak paktı üyelerine send_diplomatic_message, manage_diplomacy (müttefik savunma savaşı / yaptırım) veya convene_diplomatic_council (kriz konseyi) ile DERHAL tepki ver ve publish_world_event bas. 2) İhtiyaç varsa update_country_stats veya savunma karşı-harekatı (trigger_war_operation) uygula — ancak player turu tamamlamadıkça advance_turn ÇAĞIRMA (awaitingTurn === true değilse). 3) Tepkini bitirir bitirmez DERHAL wait_for_player_action çağırarak bir sonraki cephe/hamle olayını bekle!",
   waitContinueInstruction:
     "Bekleme zaman aşımı / kesinti oldu; tekrar wait_for_player_action (timeout_seconds=0) çağırarak süresiz beklemeye devam et.",
   waitingProgress: "Oyuncunun yeni hamlesi süresiz bekleniyor...",
@@ -165,6 +168,8 @@ const TOOL_INSTRUCTIONS_EN: McpToolInstructionSet = {
     "PLAYER ACTION READY! (Language: ENGLISH — generate all replies, headlines, markers, and summaries in ENGLISH.) 1) If pendingAdvisorMessages is non-empty, reply using reply_advisor_chat (with optional suggested_orders) — do NOT advance the turn! 2) If pendingLeaderChats has items, reply via reply_leader_chat. 3) If pendingCouncils has items, reply via reply_diplomatic_council. 4) If awaitingTurn === true or pendingOrders has items, simulate orders (transfer_territory, manage_map_markers, update_country_stats, manage_diplomacy, convene_diplomatic_council, publish_world_event) and finish with advance_turn. 5) As soon as everything is done, IMMEDIATELY call wait_for_player_action to enter zero-token indefinite standby!",
   waitReceivedInstruction:
     "PLAYER TRIGGERED ACTION FROM WEB UI! (Language: ENGLISH — write all outputs in ENGLISH.) 1) If pendingAdvisorMessages has messages, answer via reply_advisor_chat with suggested_orders (do NOT advance turn!). 2) If pendingLeaderChats has messages, reply in character via reply_leader_chat. 3) If pendingCouncils needs debate, respond via reply_diplomatic_council. 4) If awaitingTurn === true, simulate orders and call advance_turn at the end. 5) As soon as finished, IMMEDIATELY call wait_for_player_action again to keep the stream open!",
+  waitWarActionInstruction:
+    "LIVE WAR / CAPTURE / UPRISING EVENT! (Language: ENGLISH — react RIGHT NOW without waiting for Complete Turn!) Based on trigger.summary, pendingWarEvents, and recentWarOutcomes: 1) When war erupts or territory falls (CAPTURED), immediately post world reaction via publish_world_event, send leader cables (send_diplomatic_message), and trigger NATO/alliance pact responses (manage_diplomacy / convene_diplomatic_council / trigger_war_operation) if warranted. 2) Do NOT call advance_turn unless awaitingTurn === true. 3) As soon as your immediate wartime reactions finish, IMMEDIATELY call wait_for_player_action to keep listening!",
   waitContinueInstruction:
     "Wait heartbeat elapsed; immediately call wait_for_player_action (timeout_seconds=0) again to continue indefinite standby.",
   waitingProgress: "Waiting indefinitely for player's next action...",

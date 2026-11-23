@@ -1115,6 +1115,7 @@ export function createGameMasterMcpServer(boundSessionId: string): McpServer {
           const res = await advanceLiveWarOperations({
             sessionId: sid,
             tickTensions: true,
+            skipAiWake: true,
           });
           return {
             content: [

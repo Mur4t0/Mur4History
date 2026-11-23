@@ -234,12 +234,6 @@ async function pickTargetSessionId(explicitSessionId) {
     throw new Error(getLocaleCopy().noSessionsErr);
   }
 
-  // 1. Respect an explicitly switched/pinned session first
-  if (pinnedSessionId && sessions.some((s) => s.id === pinnedSessionId)) {
-    return pinnedSessionId;
-  }
-
-  // 2. Prefer any session currently open in the player's browser tab
   const browserOpen = sessions
     .filter((s) => s.browserActive)
     .sort((a, b) => {
@@ -248,6 +242,24 @@ async function pickTargetSessionId(explicitSessionId) {
       }
       return (b.lastBrowserSeenAt || 0) - (a.lastBrowserSeenAt || 0);
     });
+
+  // 1. Respect pinnedSessionId UNLESS a different browser-active tab/session clearly took foreground more recently
+  if (pinnedSessionId && sessions.some((s) => s.id === pinnedSessionId)) {
+    const pinnedObj = sessions.find((s) => s.id === pinnedSessionId);
+    const topBrowser = browserOpen[0];
+    if (
+      topBrowser &&
+      topBrowser.id !== pinnedSessionId &&
+      (!pinnedObj?.browserActive ||
+        (topBrowser.lastBrowserSeenAt || 0) > (pinnedObj?.lastBrowserSeenAt || 0) + 2000)
+    ) {
+      pinnedSessionId = topBrowser.id;
+      return topBrowser.id;
+    }
+    return pinnedSessionId;
+  }
+
+  // 2. Prefer any session currently open in the player's browser tab
   if (browserOpen.length > 0) {
     return browserOpen[0].id;
   }

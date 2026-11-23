@@ -1182,8 +1182,9 @@ export async function advanceLiveWarOperations(params: {
   sessionId: string;
   operationId?: string;
   tickTensions?: boolean;
+  skipAiWake?: boolean;
 }) {
-  const { sessionId, operationId, tickTensions = false } = params;
+  const { sessionId, operationId, tickTensions = false, skipAiWake = false } = params;
   const locale = getActiveMcpLocale(sessionId);
   const isTr = locale === "tr";
 
@@ -1207,6 +1208,7 @@ export async function advanceLiveWarOperations(params: {
   const countryMap = new Map(countries.map((c) => [c.code, c]));
   const updatedOps = [];
   const capturedRegions: Array<{ regionId: string; attacker: string; defender: string }> = [];
+  const significantOutcomes: string[] = [];
 
   for (const op of ops) {
     const attacker = countryMap.get(op.attackerCode);
@@ -1364,6 +1366,11 @@ export async function advanceLiveWarOperations(params: {
           involvedCountries: [op.defenderCode, op.attackerCode],
         },
       });
+      significantOutcomes.push(
+        isTr
+          ? `KUŞATMA PÜSKÜRTÜLDÜ: ${op.defenderCode}, ${op.targetRegionName} önünde ${op.attackerCode} ordusunu geri attı`
+          : `SIEGE REPELLED: ${op.defenderCode} routed ${op.attackerCode} at ${op.targetRegionName}`
+      );
     } else if (nextProgress >= 100) {
       nextProgress = 100;
       const targetReg = regions.find((r) => r.regionId === op.targetRegionId);
@@ -1428,6 +1435,11 @@ export async function advanceLiveWarOperations(params: {
         emitSessionEvent(sessionId, "event_published", {
           event: { ...ev, involvedCountries: [op.defenderCode] },
         });
+        significantOutcomes.push(
+          isTr
+            ? `ELÇİ KIŞKIRTMASI TAMAMLANDI: ${op.targetRegionName} (${op.defenderCode} istikrarı düştü)`
+            : `ENVOY AGITATION COMPLETE: ${op.targetRegionName} (${op.defenderCode} stability dropped)`
+        );
       } else if (isRebelOp) {
         // Popular uprising NEVER annexes territory into attackerCode — marks province CONTESTED & shakes regime
         nextStatus = "UPRISING";
@@ -1489,6 +1501,11 @@ export async function advanceLiveWarOperations(params: {
         emitSessionEvent(sessionId, "event_published", {
           event: { ...ev, involvedCountries: [op.defenderCode] },
         });
+        significantOutcomes.push(
+          isTr
+            ? `HALK İSYANI PATLAK VERDİ: ${op.targetRegionName} (${op.defenderCode} CONTESTED)`
+            : `POPULAR UPRISING: ${op.targetRegionName} (${op.defenderCode} CONTESTED)`
+        );
       } else {
         // Real military siege/blitz/invasion captures province cleanly
         nextStatus = "CAPTURED";
@@ -1539,6 +1556,11 @@ export async function advanceLiveWarOperations(params: {
               involvedCountries: [op.attackerCode, op.defenderCode],
             },
           });
+          significantOutcomes.push(
+            isTr
+              ? `TOPRAK FETHEDİLDİ: ${op.attackerCode}, ${op.targetRegionName} (${op.defenderCode}) bölgesini ele geçirdi!`
+              : `PROVINCE CAPTURED: ${op.attackerCode} seized ${op.targetRegionName} from ${op.defenderCode}!`
+          );
         }
       }
     }
@@ -1607,6 +1629,15 @@ export async function advanceLiveWarOperations(params: {
         });
       }
     }
+  }
+
+  if (!skipAiWake && significantOutcomes.length > 0) {
+    markBrowserSessionActive(sessionId);
+    notifyPlayerAction(
+      sessionId,
+      "WAR_ACTION",
+      significantOutcomes.join(" • ")
+    );
   }
 
   return {
@@ -2525,6 +2556,14 @@ export async function attemptDirectCeasefireAction(params: {
   });
 
   emitSessionEvent(sessionId, "war_operation_updated", { ceasefire: true });
+  markBrowserSessionActive(sessionId);
+  notifyPlayerAction(
+    sessionId,
+    "WAR_ACTION",
+    isTr
+      ? `ATEŞKES İMZALANDI: ${countryA} ile ${countryB} arasında ikili ateşkes sağlandı.`
+      : `CEASEFIRE SIGNED: Bilateral ceasefire agreed between ${countryA} and ${countryB}.`
+  );
   return {
     relation,
     summary: isTr
@@ -2994,6 +3033,15 @@ export async function resolvePeaceCouncilAction(params: {
       messages: [playerMsg, replyStronger, replyWeaker],
       councilStatus: "RESOLVED",
     });
+
+    markBrowserSessionActive(sessionId);
+    notifyPlayerAction(
+      sessionId,
+      "WAR_ACTION",
+      isTr
+        ? `BARIŞ KONSEYİ ANLAŞTI: ${nameA} – ${nameB} savaşı %${evaluation.score} uzlaşıyla sona erdi.`
+        : `PEACE COUNCIL RESOLVED: War between ${nameA} and ${nameB} ended (${evaluation.score}% consensus).`
+    );
 
     return {
       accepted: true,

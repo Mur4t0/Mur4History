@@ -74,6 +74,7 @@ interface RealtimeStore {
   bus: EventEmitter;
   mcpConnections: Map<string, Map<string, McpConnectionInfo>>;
   aiWaiters: Map<string, AiWaiterEntry>;
+  pendingTriggers: Map<string, PlayerActionTrigger[]>;
   browserSessions: Map<string, BrowserSessionActivity>;
   activeLocale: AppLocale;
   sessionLocales: Map<string, AppLocale>;
@@ -91,6 +92,7 @@ function getStore(): RealtimeStore {
       bus,
       mcpConnections: new Map(),
       aiWaiters: new Map(),
+      pendingTriggers: new Map(),
       browserSessions: new Map(),
       activeLocale: "tr",
       sessionLocales: new Map(),
@@ -98,6 +100,9 @@ function getStore(): RealtimeStore {
   }
   if (!globalForRealtime.__paxRealtimeStore.aiWaiters) {
     globalForRealtime.__paxRealtimeStore.aiWaiters = new Map();
+  }
+  if (!globalForRealtime.__paxRealtimeStore.pendingTriggers) {
+    globalForRealtime.__paxRealtimeStore.pendingTriggers = new Map();
   }
   if (!globalForRealtime.__paxRealtimeStore.browserSessions) {
     globalForRealtime.__paxRealtimeStore.browserSessions = new Map();
@@ -431,6 +436,44 @@ export function unregisterMcpConnection(sessionId: string, connectionId: string)
   }
 }
 
+export function peekPendingPlayerTriggers(
+  sessionId: string,
+  acceptAnySession = true
+): PlayerActionTrigger[] {
+  const store = getStore();
+  const direct = store.pendingTriggers.get(sessionId);
+  if (direct && direct.length > 0) {
+    return [...direct];
+  }
+  if (acceptAnySession) {
+    for (const list of store.pendingTriggers.values()) {
+      if (list.length > 0) return [...list];
+    }
+  }
+  return [];
+}
+
+export function consumePendingPlayerTriggers(
+  sessionId: string,
+  acceptAnySession = true
+): PlayerActionTrigger[] {
+  const store = getStore();
+  const direct = store.pendingTriggers.get(sessionId);
+  if (direct && direct.length > 0) {
+    store.pendingTriggers.delete(sessionId);
+    return direct;
+  }
+  if (acceptAnySession) {
+    for (const [sid, list] of store.pendingTriggers.entries()) {
+      if (list.length > 0) {
+        store.pendingTriggers.delete(sid);
+        return list;
+      }
+    }
+  }
+  return [];
+}
+
 export function waitForPlayerActionEvent(params: {
   sessionId: string;
   clientName?: string;
@@ -462,6 +505,20 @@ export function waitForPlayerActionEvent(params: {
     transport: "sse",
     persistentStream: true,
   });
+
+  // Return immediately if a buffered trigger for THIS session (or any session from global lobby) arrived while AI was busy mid-turn
+  const allowCrossSessionBuffer = sessionId === GLOBAL_MCP_CHANNEL;
+  const buffered = consumePendingPlayerTriggers(sessionId, allowCrossSessionBuffer);
+  if (buffered.length > 0) {
+    const combined: PlayerActionTrigger =
+      buffered.length === 1
+        ? buffered[0]
+        : {
+            ...buffered[buffered.length - 1],
+            summary: buffered.map((b) => b.summary).join(" | "),
+          };
+    return Promise.resolve(combined);
+  }
 
   return new Promise<PlayerActionTrigger | null>((resolve) => {
     let settled = false;
@@ -534,15 +591,43 @@ export function notifyPlayerAction(
 
   emitSessionEvent(sessionId, "player_action_triggered", trigger);
 
-  const matchingWaiters: AiWaiterEntry[] = [];
+  const exactWaiters: AiWaiterEntry[] = [];
+  const anyWaiters: AiWaiterEntry[] = [];
   for (const entry of store.aiWaiters.values()) {
-    if (entry.sessionId === sessionId || entry.acceptAnySession) {
-      matchingWaiters.push(entry);
+    if (entry.sessionId === sessionId) {
+      exactWaiters.push(entry);
+    } else if (entry.acceptAnySession) {
+      anyWaiters.push(entry);
     }
   }
 
-  for (const waiter of matchingWaiters) {
-    waiter.resolve(trigger);
+  const matchingWaiters = exactWaiters.length > 0 ? exactWaiters : anyWaiters;
+
+  if (matchingWaiters.length > 0) {
+    for (const waiter of matchingWaiters) {
+      waiter.resolve(trigger);
+    }
+    return;
+  }
+
+  // Only buffer transient non-DB triggers (WAR_ACTION / MANUAL_WAKE) while AI is mid-turn
+  // or between 45s poll chunks; chat, council, and turn completions already persist in the DB
+  // until answered.
+  if (triggerType !== "WAR_ACTION" && triggerType !== "MANUAL_WAKE") {
+    return;
+  }
+
+  const list = store.pendingTriggers.get(sessionId) ?? [];
+  const last = list[list.length - 1];
+  const isDuplicateRecent =
+    last &&
+    last.triggerType === triggerType &&
+    last.summary === summary &&
+    Date.now() - Date.parse(last.timestamp) < 1500;
+  if (!isDuplicateRecent) {
+    list.push(trigger);
+    if (list.length > 20) list.shift();
+    store.pendingTriggers.set(sessionId, list);
   }
 }
 
