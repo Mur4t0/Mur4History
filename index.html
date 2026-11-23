@@ -172,17 +172,17 @@
     .nav-links {
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 2px;
       flex-wrap: wrap;
     }
 
     .nav-tab {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
+      gap: 5px;
+      padding: 5px 9px;
       border-radius: 9px;
-      font-size: 12.5px;
+      font-size: 12px;
       font-weight: 600;
       color: var(--muted);
       transition: all 0.18s ease;
@@ -809,7 +809,7 @@
       margin-bottom: 14px;
     }
 
-    /* Architecture & 14 MCP Tools Grid */
+    /* Architecture & 18 MCP Tools Grid */
     .tools-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -868,6 +868,178 @@
       margin: 0;
       font-size: 12.5px;
       color: var(--muted);
+    }
+
+    /* Release Updates & Patch Notes Hub */
+    .nav-tab-badge {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--emerald);
+      margin-left: 5px;
+      vertical-align: middle;
+      box-shadow: 0 0 8px var(--emerald);
+    }
+
+    .updates-shell {
+      border-radius: 22px;
+      border: 1px solid rgba(52, 211, 153, 0.25);
+      background: linear-gradient(165deg, rgba(10, 17, 32, 0.94), rgba(6, 10, 19, 0.97));
+      padding: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+    }
+
+    .updates-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+      gap: 16px;
+    }
+
+    .update-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 18px 20px;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: rgba(13, 20, 36, 0.88);
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .update-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--border-copper);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+    }
+
+    .update-card.is-latest {
+      border-color: rgba(251, 191, 36, 0.42);
+      background: linear-gradient(155deg, rgba(28, 22, 12, 0.42), rgba(13, 20, 36, 0.92));
+    }
+
+    .update-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .update-badges {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .update-ver-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-size: 11px;
+      font-weight: 800;
+      background: linear-gradient(135deg, rgba(239, 227, 200, 0.16), rgba(207, 127, 86, 0.22));
+      border: 1px solid var(--border-copper);
+      color: var(--ivory);
+    }
+
+    .update-ver-pill svg {
+      width: 12px;
+      height: 12px;
+      color: var(--copper-bright);
+    }
+
+    .update-cat-pill {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: #bae6fd;
+    }
+
+    .update-cat-pill.latest {
+      background: rgba(52, 211, 153, 0.14);
+      border-color: rgba(52, 211, 153, 0.4);
+      color: #a7f3d0;
+    }
+
+    .update-commit-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 7px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(0, 0, 0, 0.42);
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-size: 10.5px;
+      color: var(--muted);
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .update-commit-link:hover {
+      color: var(--ivory);
+      border-color: var(--border-copper);
+    }
+
+    .update-commit-link svg {
+      width: 11px;
+      height: 11px;
+    }
+
+    .update-title {
+      margin: 0;
+      font-family: Georgia, serif;
+      font-size: 17px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.3;
+    }
+
+    .update-block {
+      border-radius: 11px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      background: rgba(6, 10, 19, 0.62);
+      padding: 10px 12px;
+    }
+
+    .update-block-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 4px;
+    }
+
+    .update-block-label.what {
+      color: var(--copper-bright);
+    }
+
+    .update-block-label.why {
+      color: var(--emerald);
+    }
+
+    .update-block-label svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .update-block p {
+      margin: 0;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: #cbd5e1;
     }
 
     /* Scenarios Grid */
@@ -1215,8 +1387,9 @@
       <nav class="nav-links" aria-label="Primary">
         <a class="nav-tab" href="#tutorial" id="nav-tut">Gelişmiş MCP Rehberi</a>
         <a class="nav-tab" href="#ai-prompt" id="nav-prompt">AI Kurulum Promptu</a>
+        <a class="nav-tab" href="#updates" id="nav-updates">Güncellemeler</a>
         <a class="nav-tab" href="#scenarios" id="nav-scen">12 Senaryo</a>
-        <a class="nav-tab" href="#mcp-tools" id="nav-tools">14 MCP Aracı</a>
+        <a class="nav-tab" href="#mcp-tools" id="nav-tools">18 MCP Aracı</a>
         <a class="nav-tab" href="#community" id="nav-comm">Topluluk</a>
       </nav>
 
@@ -1371,7 +1544,25 @@
     </section>
 
     <!-- ============================================================
-         3. 12 OFFICIAL HISTORICAL PRESET SCENARIOS
+         3. SON GÜNCELLEMELER & YENİLİKLER (CHANGELOG & FEATURE GUIDE)
+         ============================================================ -->
+    <section id="updates">
+      <div class="sec-header">
+        <div>
+          <div class="sec-eyebrow" id="updates-eyebrow"></div>
+          <h2 class="sec-title" id="sec-updates-title"></h2>
+          <p class="sec-desc" id="sec-updates-desc"></p>
+        </div>
+        <div class="sub-pill-row" id="updates-filter-pills" style="margin-bottom:0;"></div>
+      </div>
+
+      <div class="updates-shell">
+        <div class="updates-grid" id="updates-grid"></div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         4. 12 OFFICIAL HISTORICAL PRESET SCENARIOS
          ============================================================ -->
     <section id="scenarios">
       <div class="sec-header">
@@ -1386,7 +1577,7 @@
     </section>
 
     <!-- ============================================================
-         4. 14 MCP TOOLS & 9 RESOURCES ARCHITECTURE EXPLORER
+         5. 18 MCP TOOLS & 10 RESOURCES ARCHITECTURE EXPLORER
          ============================================================ -->
     <section id="mcp-tools">
       <div class="sec-header">
@@ -1560,8 +1751,12 @@
       users: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
       calendar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
       github: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>`,
-      discord: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>`,
-      docker: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12.5c-.5-.3-1.5-.4-2.3-.2-.2-1.1-.9-2-1.8-2.6l-.4-.3-.3.4c-.5.7-.7 1.7-.5 2.5-.4.2-1.2.3-1.7.3H2.5c-.4 2.3.2 4.6 1.7 6.3 1.5 1.7 3.9 2.6 6.8 2.6 5.4 0 9.4-2.5 11-7 .8 0 1.6-.2 2-.8l.2-.4-.2-.8Z"/><rect x="5" y="9" width="2.5" height="2.5"/><rect x="8" y="9" width="2.5" height="2.5"/><rect x="11" y="9" width="2.5" height="2.5"/><rect x="8" y="6" width="2.5" height="2.5"/><rect x="11" y="6" width="2.5" height="2.5"/></svg>`
+      discord: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.077 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>`,
+      docker: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12.5c-.5-.3-1.5-.4-2.3-.2-.2-1.1-.9-2-1.8-2.6l-.4-.3-.3.4c-.5.7-.7 1.7-.5 2.5-.4.2-1.2.3-1.7.3H2.5c-.4 2.3.2 4.6 1.7 6.3 1.5 1.7 3.9 2.6 6.8 2.6 5.4 0 9.4-2.5 11-7 .8 0 1.6-.2 2-.8l.2-.4-.2-.8Z"/><rect x="5" y="9" width="2.5" height="2.5"/><rect x="8" y="9" width="2.5" height="2.5"/><rect x="11" y="9" width="2.5" height="2.5"/><rect x="8" y="6" width="2.5" height="2.5"/><rect x="11" y="6" width="2.5" height="2.5"/></svg>`,
+      swords: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" y1="14" x2="9" y2="18"/><line x1="7" y1="17" x2="4" y2="20"/><line x1="3" y1="19" x2="5" y2="21"/></svg>`,
+      radiation: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M12 10V4a8 8 0 0 0-7 4l5.2 3"/><path d="m13.8 11 5.2-3a8 8 0 0 1 0 8l-5.2-3"/><path d="M10.2 13 5 16a8 8 0 0 0 14 0l-5.2-3"/></svg>`,
+      flame: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`,
+      history: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>`
     };
 
     /* ============================================================
@@ -1573,7 +1768,107 @@
     let activeIde = "antigravity"; // 'antigravity' | 'cursor' | 'claude' | 'windsurf'
     let activeTransport = "stdio"; // 'stdio' | 'http'
     let activeEraFilter = "all"; // 'all' | 'modern' | 'wars' | 'empires'
+    let activeUpdateFilter = "all"; // 'all' | 'war' | 'diplomacy' | 'saves' | 'platform'
     let customProjectPath = "C:/Mur4History";
+
+    const UPDATES = [
+      {
+        id: "nuclear-treaty",
+        cat: "diplomacy",
+        latest: true,
+        ver: "v2.5",
+        commit: "e4a1b4f",
+        icon: "radiation",
+        trCat: "NÜKLEER & DİPLOMASİ",
+        enCat: "NUCLEAR & DIPLOMACY",
+        trTitle: "Nükleer Başlık Envanteri Kilidi & Antlaşmalı Ülkeden Nükleer Paylaşım",
+        enTitle: "Nuclear Stockpile Gating & Treaty-Based Leader Nuclear Sharing",
+        trWhat: "Ülkelere tarihsel döneme göre gerçekçi nükleer başlık stoğu (nuclearWarheads) eklendi. 1945 öncesi tüm ülkeler 0 başlıkla başlarken, 1962/1991/2026 nükleer güçleri cephaneliğe sahip olur; hem Savaş Odası hem de launch_nuclear_strike artık 0 başlıkla fırlatmayı reddeder ve her atış 1 başlık düşer.",
+        enWhat: "Added era-calibrated nuclear warhead stockpiles (nuclearWarheads) per nation. Pre-1945 eras start at 0, while nuclear powers hold stockpiles in 1962/1991/2026. Both War Room UI and launch_nuclear_strike block firing at 0 warheads and deduct 1 per strike.",
+        trWhy: "Başlığın yoksa rastgele füze atamazsın: bunun yerine NATO, Varşova Paktı veya ikili İttifak/Savunma Antlaşması imzaladığın nükleer güçlü bir ülkenin lideriyle Liderler Sohbeti'nde konuşup 'Antlaşmayla Başlık İste' ya da 'AI Lidere Sor' diyerek başlık devri alabilir, veya yerli nükleer program başlatabilirsin.",
+        enWhy: "Prevents unrealistic instant nukes from non-nuclear nations. To acquire warheads, negotiate directly with an allied nuclear patron (like USA under NATO) inside Leader Chat via 'Request via Treaty' or AI negotiation, or complete a domestic nuclear program."
+      },
+      {
+        id: "save-cloning",
+        cat: "saves",
+        latest: false,
+        ver: "v2.4",
+        commit: "9d0151f",
+        icon: "copy",
+        trCat: "KAYIT & KLONLAMA",
+        enCat: "SAVES & CLONING",
+        trTitle: "Tek Tıkla Save / Oyun Klonlama Sistemi",
+        enTitle: "One-Click Campaign & Browser Save Cloning",
+        trWhat: "Oyun içi Kaydet / İndir modalına, Lobi kayıtlı oyun kartlarına ve Tarayıcı (IndexedDB) kayıt listesine tek tıkla klonlama butonu (/api/sessions/[id]/clone) eklendi. Tüm 270 eyalet, diplomasi, gerilim, cepheler ve sohbet geçmişi kopyalanır.",
+        enWhat: "Added 1-click Clone actions to in-game Save Modal, Lobby campaign cards, and Browser IndexedDB slots (/api/sessions/[id]/clone), deep-copying all 270 provinces, diplomacy, war fronts, markers, and full chat history.",
+        trWhy: "Büyük bir savaşa girmeden veya kritik bir antlaşma denemeden önce mevcut oyununun bağımsız '(Klon)' / '(Klon 2)' bir kopyasını oluşturup 'Klonu Aç' butonuyla farklı alternatif tarih senaryolarını orijinal kaydını bozmadan test etmeni sağlar.",
+        enWhy: "Lets you branch your campaign before major wars or risky treaties into independent '(Clone)' saves with auto-incremented names and an instant 'Open Clone' button without risking your main timeline."
+      },
+      {
+        id: "live-warfare",
+        cat: "war",
+        latest: false,
+        ver: "v2.3",
+        commit: "09bb447",
+        icon: "swords",
+        trCat: "CANLI SAVAŞ MOTORU",
+        enCat: "LIVE WARFARE",
+        trTitle: "Animasyonlu Asker/Tank Kuşatmaları, Savaş Olasılığı Radarı & Ülkeleri Birbirine Düşürme",
+        enTitle: "Animated Unit Sieges, War Outbreak Radar & 3rd-Party War Instigation",
+        trWhat: "Harita üzerinde yürüyen piyade askerler, zırhlı tanklar, savaş jetleri, donanma çıkarmaları ve nükleer ICBM mantar bulutu efektleri ile Web Audio ses efektleri eklendi. Savaş Çıkma Olasılığı Radarı, Canlı Oto-Savaş ve provoke_country / trigger_war_operation / launch_nuclear_strike MCP araçları geliştirildi.",
+        enWhat: "Built WarEffectsCanvas with marching infantry, tanks, fighter jets, naval assaults, ICBM nuclear detonations, Web Audio SFX, bilateral War Probability Radar, Live Auto-Battle ticker, and 3 dedicated warfare MCP tools.",
+        trWhy: "Artık ülkeler arası gerilim ve savaş olasılığı canlı hesaplanır; istediğin ülkeyi sınır tacizi veya isyancı desteğiyle kışkırtabilir, üçüncü ülkeleri birbirine düşürüp savaşa sokabilir ve kuşatma birliklerinin hedef şehre yürüyüp toprak fethetmesini anlık izleyebilirsin.",
+        enWhy: "Turns static diplomacy into living warfare: provoke rivals, instigate wars between two third-party nations via false-flag ops, and watch real-time animated troops besiege and capture enemy provinces on the world map."
+      },
+      {
+        id: "full-councils",
+        cat: "diplomacy",
+        latest: false,
+        ver: "v2.2",
+        commit: "a45cc85",
+        icon: "users",
+        trCat: "KONSEY DİPLOMASİSİ",
+        enCat: "DIPLOMATIC COUNCILS",
+        trTitle: "Konsey Masasında Tüm 200+ Ülke Desteği, Arama & Hızlı Toplu Davet",
+        enTitle: "Full 200+ Nation Support, Search & Quick-Select in Council Invites",
+        trWhat: "Çok uluslu diplomatik konsey oluşturma ekranındaki ve MCP sunucusundaki 36 ülke listeleme sınırı kaldırıldı; haritadaki tüm ülkeler aranabilir listeye açıldı ve 'Tümünü Seç / Büyük Güçleri Ekle / Temizle' kısayolları eklendi.",
+        enWhat: "Removed the 36-country cap in Council invite modals and MCP responses, exposing every session nation with instant live search and 'Select All / Add Major Powers / Clear' quick-select controls.",
+        trWhy: "Sadece büyük güçleri değil dünyadaki herhangi bir küçük veya bölgesel devleti de saniyeler içinde bularak BM zirvesi, bölgesel pakt veya çok uluslu protesto koalisyonuna davet edebilmeni sağlar.",
+        enWhy: "Lets you invite any combination of minor nations or global powers—no hidden list truncation—when convening multilateral summits or coalition protests."
+      },
+      {
+        id: "portable-launcher",
+        cat: "platform",
+        latest: false,
+        ver: "v2.1",
+        commit: "d79cf93",
+        icon: "bolt",
+        trCat: "TAŞINABİLİR KURULUM",
+        enCat: "PORTABLE LAUNCHER",
+        trTitle: "Her Klasörde Çalışan Otomatik Kurulumlu .bat Başlatıcılar",
+        enTitle: "Zero-Config Portable Windows Launchers & Auto-Installer",
+        trWhat: "Mur4History-Play.bat ve Mur4History-Stop.bat sabit klasör yollarından arındırıldı; script bulunduğu klasördeki node_modules, .env, Prisma SQLite DB ve Next.js build durumunu kendisi kontrol edecek hale getirildi.",
+        enWhat: "Removed all hardcoded directory paths from Mur4History-Play.bat and Mur4History-Stop.bat and added automatic node_modules, .env, Prisma DB push/seed, and Next.js build provisioning.",
+        trWhy: "Projeyi GitHub'dan hangi klasöre indirirsen indir tek çift tıklamayla eksik bağımlılıklar kurulur ve oyun ek terminal ayarı gerektirmeden http://localhost:3000 üzerinde açılır.",
+        enWhy: "Clone or unzip the repo anywhere on Windows and double-click Mur4History-Play.bat—everything missing installs and launches cleanly with zero manual config editing."
+      },
+      {
+        id: "showcase-tutorial",
+        cat: "platform",
+        latest: false,
+        ver: "v2.0",
+        commit: "4e1cc40",
+        icon: "terminal",
+        trCat: "VİTRİN & REHBER",
+        enCat: "SHOWCASE & GUIDE",
+        trTitle: "Etkileşimli MCP Kurulum Rehberi, AI Prompt Üreteci & Vektörel İkonlar",
+        enTitle: "Interactive MCP Setup Hub, AI Auto-Prompt & Custom Vector Icons",
+        trWhat: "GitHub Pages vitrini IDE JSON oluşturucu (Antigravity, Cursor, Claude, Windsurf), STDIO/HTTP seçici, kopyalanabilir TR/EN AI Kurulum Promptu ve özel kodlanmış SVG ikon sistemi ile yenilendi.",
+        enWhat: "Rebuilt the GitHub Pages portal with an interactive IDE config generator, STDIO/HTTP transport toggle, dynamic TR/EN AI onboarding prompt, and crisp custom SVG iconography.",
+        trWhy: "İlk kez oynayan kullanıcıların 1 dakikadan kısa sürede kendi yapay zekalarını Game Master olarak bağlayıp tüm özellikleri keşfetmesini kolaylaştırır.",
+        enWhy: "Helps new players connect their AI assistant as Game Master in under 60 seconds with exact copy-paste configs."
+      }
+    ];
 
     const SCENARIOS = [
       { id: "2026", year: "2026", cat: "modern", img: "./assets/2026.jpg", trTitle: "2026: Modern Jeopolitik", enTitle: "2026: Modern Geopolitics", trEra: "Çok Kutuplu 21. Yüzyıl • 1 Ay/Tur", enEra: "Multipolar 21st Century • 1 Mo/Turn", trDesc: "Yapay zeka yarışı, enerji koridorları ve modern ittifak blokları arasında küresel strateji.", enDesc: "Navigate modern alliances, energy corridors, and multipolar superpower rivalry across 270 provinces." },
@@ -1591,20 +1886,24 @@
     ];
 
     const MCP_TOOLS = [
-      { name: "wait_for_player_action", tag: "CORE LOOP", tr: "Oyuncu emir, lider mesajı, konsey veya danışman sorusu gönderene kadar sıfır token tüketerek bekler.", en: "Suspends the AI with zero idle token burn until the player submits an order, diplomatic message, or turn advance." },
-      { name: "read_game_context", tag: "STATE", tr: "Seçili oturumun tüm ülke istatistiklerini, 270 eyalet sahipliğini, savaşları ve bekleyen emirleri okur.", en: "Reads complete session state: country metrics, 270-province ownership, wars, treaties, and pending player inputs." },
+      { name: "wait_for_player_action", tag: "CORE LOOP", tr: "Oyuncu emir, lider mesajı, konsey, savaş veya danışman sorusu gönderene kadar sıfır token tüketerek bekler.", en: "Suspends the AI with zero idle token burn until the player submits an order, diplomatic message, war action, or turn advance." },
+      { name: "read_game_context", tag: "STATE", tr: "Seçili oturumun tüm ülke istatistiklerini, nükleer stoklarını, 270 eyalet sahipliğini, savaşları ve emirleri okur.", en: "Reads complete session state: country metrics, nuclear stockpiles, 270-province ownership, wars, treaties, and pending inputs." },
       { name: "transfer_territory", tag: "MAP", tr: "Savaş, antlaşma veya ilhak sonucunda 270 eyaletten herhangi birini ülkeler arasında anında devreder.", en: "Transfers any of the 270 historical provinces between nations with instant live map updates via SSE." },
-      { name: "update_country_stats", tag: "ECONOMY", tr: "Ekonomi, askeri güç, istikrar, nüfus ve teknoloji puanlarını tarihsel sonuçlara göre günceller.", en: "Updates treasury, military strength, stability, manpower, and technology indexes with realistic deltas." },
-      { name: "manage_diplomacy", tag: "DIPLOMACY", tr: "Savaş ilanı, ateşkes, ittifak, ticaret antlaşması veya yaptırım kararlarını yürürlüğe koyar.", en: "Enacts declarations of war, peace treaties, defensive pacts, embargoes, and formal alliances." },
+      { name: "update_country_stats", tag: "ECONOMY", tr: "Ekonomi, askeri güç, istikrar, agresiflik ve nükleer başlık stoğu (nuclear_warheads_delta) puanlarını günceller.", en: "Updates economy, military power, stability, infamy, and domestic nuclear stockpile deltas with realistic calibration." },
+      { name: "manage_diplomacy", tag: "DIPLOMACY", tr: "Savaş ilanı, ateşkes, ittifak, saldırmazlık veya ambargo antlaşmalarını yürürlüğe koyar.", en: "Enacts declarations of war, peace treaties, defensive pacts, embargoes, and formal alliances." },
       { name: "publish_world_event", tag: "GAZETTE", tr: "Dünya Gazetesi'ne GÜNCEL damgalı manşet haberleri, cephe raporları ve küresel kriz bültenleri yazar.", en: "Publishes rich historical headlines, front-line dispatches, and world events to the interactive Chronicle Gazette." },
       { name: "manage_map_markers", tag: "LANDMARKS", tr: "Harita üzerine animasyonlu fabrika, askeri üs, donanma tersanesi, zirve ve çatışma işaretleri yerleştirir.", en: "Places animated map pins for factories, military bases, naval shipyards, diplomatic summits, and battlefronts." },
-      { name: "reply_leader_chat", tag: "1-ON-1", tr: "Yabancı ülke devlet başkanlarının kişiliğine bürünerek oyuncunun ikili diplomasi mesajlarını yanıtlar.", en: "Roleplays foreign heads of state in 1-on-1 diplomatic negotiations with authentic historical persona." },
-      { name: "convene_diplomatic_council", tag: "SUMMIT", tr: "Birden fazla ülkenin katıldığı uluslararası barış konferansı veya koalisyon konseyi toplar.", en: "Convenes multilateral diplomatic summits and coalition councils with multiple participating nations." },
+      { name: "reply_leader_chat", tag: "1-ON-1", tr: "Yabancı liderlerin ağzından bire bir yanıt verir; antlaşma varsa aynı anda nükleer başlık transferini onaylayabilir.", en: "Roleplays foreign heads of state in 1-on-1 talks and can authorize treaty-backed nuclear warhead transfers." },
+      { name: "convene_diplomatic_council", tag: "SUMMIT", tr: "Tüm 200+ ülke arasından seçilen devletlerle uluslararası barış konferansı veya koalisyon konseyi toplar.", en: "Convenes multilateral summits and coalitions with any subset of the 200+ world nations." },
       { name: "reply_diplomatic_council", tag: "COUNCIL", tr: "Çok uluslu konsey masasında her ülke temsilcisinin sıra ile konuşmasını ve oylamasını simüle eder.", en: "Posts multi-leader interventions and treaty votes inside active diplomatic council chambers." },
-      { name: "reply_advisor_chat", tag: "CABINET", tr: "Başdanışman olarak oyuncuya askeri, ekonomik ve jeopolitik istihbarat tavsiyeleri sunar.", en: "Provides strategic cabinet briefings, risk assessments, and military advice as the Grand Vizier / Chief Advisor." },
+      { name: "reply_advisor_chat", tag: "CABINET", tr: "Başdanışman olarak oyuncuya askeri, ekonomik, nükleer ve jeopolitik istihbarat tavsiyeleri sunar.", en: "Provides strategic cabinet briefings, war risk assessments, and one-click order suggestions as Chief Advisor." },
       { name: "send_diplomatic_message", tag: "DISPATCH", tr: "Diğer devletlerden oyuncuya ültimatom, ittifak teklifi veya gizli diplomatik nota gönderir.", en: "Sends proactive AI-initiated ultimatums, alliance proposals, and diplomatic cables from foreign capitals." },
-      { name: "advance_turn", tag: "TIMELINE", tr: "Tüm emirleri işledikten sonra tarihi bir sonraki tura ilerletir ve geri sarma (rollback) kaydı alır.", en: "Advances the historical timeline to the next turn and creates an automatic time-travel rollback snapshot." },
-      { name: "list_game_sessions", tag: "SESSION", tr: "Mevcut kampanyaları listeler ve switch_game_session ile aktif senaryolar arasında geçiş yapar.", en: "Lists all active campaigns and switches the AI Game Master between sessions via switch_game_session." }
+      { name: "provoke_country", tag: "WARFARE", tr: "Sınır tacizi, diplomatik hakaret, isyancı desteği veya sahte bayrak operasyonuyla ülkeleri birbirine düşürür.", en: "Escalates war probability via border skirmishes, rebel sponsorship, or instigates wars between third-party nations." },
+      { name: "trigger_war_operation", tag: "COMBAT", tr: "Harita üzerinde hedef eyalete yürüyen asker, tank taarruzu, hava akını veya deniz çıkarması başlatır.", en: "Deploys animated infantry, armored tank blitz, air strikes, or naval invasions across the live map." },
+      { name: "launch_nuclear_strike", tag: "NUCLEAR", tr: "Envanterinde başlık bulunan ülkeyle balistik nükleer füze fırlatır, krater açar ve 1 başlık tüketir.", en: "Fires an ICBM warhead (requires nuclear_warheads > 0 and consumes 1) with blast animation and fallout crater." },
+      { name: "transfer_nuclear_warheads", tag: "TREATY", tr: "İttifak veya savunma paktı altındaki nükleer güçten müttefikine başlık konuşlandırır ve haritada işaretler.", en: "Transfers nuclear warheads from a patron nation to a treaty ally under NATO/alliance umbrellas with map deployment pin." },
+      { name: "advance_turn", tag: "TIMELINE", tr: "Tüm emirleri ve canlı cephe savaşlarını ilerleterek tarihi günceller ve geri sarma snapshot'ı alır.", en: "Advances the historical timeline, progresses active war fronts, and saves a time-travel rollback snapshot." },
+      { name: "list_game_sessions", tag: "SESSION", tr: "Mevcut/klonlanmış kampanyaları listeler ve aktif oyun oturumu arasında geçiş yapar.", en: "Lists active or cloned campaigns and switches the AI Game Master between sessions." }
     ];
 
     function getIdeConfigJson(ide, transport, projectPath) {
@@ -1659,14 +1958,14 @@ Lütfen MCP yapılandırma dosyana (mcp_config.json / mcp.json) "mur4history" su
 2. ADIM — BAĞLANTIYI DOĞRULA VE OYUNU BANA TAM OLARAK TANIT:
 - Bağlantıyı kurduktan sonra ilk olarak \`list_game_sessions\` ve \`read_game_context\` araçlarını çağır. (Bu çağrı lobideki MCP kilit ekranını otomatik olarak açacaktır!)
 - Ardından bana Mur4History'yi kapsamlı biçimde tanıt:
-  • 270 gerçekçi tarihsel eyaletten oluşan MapLibre GL dünya haritasını ve 14 harita görünümünü,
+  • 270 gerçekçi tarihsel eyaletten oluşan MapLibre GL dünya haritasını, canlı cephe/birim animasyonlarını ve 14 harita görünümünü,
   • 12 resmi tarihsel senaryoyu (1444 Yeni Çağ, 1526 Kanuni & Mohaç, 1812 Napolyon, 1877 93 Harbi & Plevne, 1914 I. Dünya Savaşı, 1919 Türk Kurtuluş Savaşı, 1936 Fırtına Öncesi, 1939 II. Dünya Savaşı, 1942 Stalingrad, 1962 Soğuk Savaş, 1991 SSCB Dağılışı, 2026 Modern Jeopolitik),
   • Emir Konsolu'ndan askeri, ekonomik, gizli operasyon ve diplomasi emirlerini nasıl verebileceğimi,
-  • Yabancı ülke liderleriyle 1'e 1 canlı müzakere (\`reply_leader_chat\`), Çok Uluslu Diplomatik Konsey (\`convene_diplomatic_council\`), Başdanışman (\`reply_advisor_chat\`), Harita Üzeri Animasyonlu Tesis/Kriz İşaretleri (\`manage_map_markers\`) ve Dünya Gazetesi (\`publish_world_event\`) sistemlerini anlat.
+  • Canlı Savaş Odası & Olasılık Radarı'nı (\`provoke_country\`, \`trigger_war_operation\`), nükleer başlık stoğu ve antlaşmalı müttefikten başlık paylaşımı (\`launch_nuclear_strike\`, \`transfer_nuclear_warheads\`), tüm 200+ ülkeyle Konsey zirveleri (\`convene_diplomatic_council\`), 1'e 1 Lider sohbeti (\`reply_leader_chat\`), tek tıkla save klonlama, Başdanışman (\`reply_advisor_chat\`), Harita İşaretleri (\`manage_map_markers\`) ve Dünya Gazetesi (\`publish_world_event\`) sistemlerini anlat.
 
 3. ADIM — SIFIR TOKEN BEKLEME DÖNGÜSÜNE (GAME MASTER LOOP) GİR:
-- Tanıtımı yaptıktan sonra hemen \`wait_for_player_action\` aracını çağır ve ben oyundan bir emir, lider mesajı, danışman sorusu veya tur ilerletme isteği gönderene kadar bekle.
-- Ben arayüzden her hamle yaptığımda ilgili MCP araçlarıyla (\`transfer_territory\`, \`update_country_stats\`, \`manage_diplomacy\`, \`publish_world_event\`, \`manage_map_markers\`, \`advance_turn\`) tarihsel simülasyonu yürüt ve her turun sonunda tekrar \`wait_for_player_action\` çağırarak nöbete geç!`;
+- Tanıtımı yaptıktan sonra hemen \`wait_for_player_action\` aracını çağır ve ben oyundan bir emir, lider mesajı, savaş hamlesi, danışman sorusu veya tur ilerletme isteği gönderene kadar bekle.
+- Ben arayüzden her hamle yaptığımda ilgili MCP araçlarıyla (\`transfer_territory\`, \`update_country_stats\`, \`manage_diplomacy\`, \`trigger_war_operation\`, \`transfer_nuclear_warheads\`, \`publish_world_event\`, \`manage_map_markers\`, \`advance_turn\`) tarihsel simülasyonu yürüt ve her turun sonunda tekrar \`wait_for_player_action\` çağırarak nöbete geç!`;
       } else {
         return `You are the AI Game Master and Setup Assistant for the Mur4History Alternate History & Grand Strategy Simulation Platform.
 
@@ -1682,14 +1981,14 @@ Add or verify the "mur4history" MCP server in your MCP configuration (mcp_config
 STEP 2 — VERIFY CONNECTION & GIVE ME A COMPLETE GAME BRIEFING:
 - Call \`list_game_sessions\` and \`read_game_context\` right away (this automatically unlocks the strict MCP security gate in the web UI!).
 - Introduce every major system of Mur4History to me in English:
-  • The 270-province interactive MapLibre GL world atlas with 14 map modes and terrain relief,
+  • The 270-province interactive MapLibre GL world atlas, live battlefield animations, and 14 map modes,
   • All 12 official historical scenarios (1444 Rise of Empires, 1526 Suleiman & Mohács, 1812 Napoleonic Wars, 1877 Siege of Plevna, 1914 WWI, 1919 Turkish War of Independence, 1936 Gathering Storm, 1939 WWII, 1942 Stalingrad, 1962 Cold War, 1991 Soviet Dissolution, 2026 Modern Geopolitics),
   • How to issue military, economic, covert, and diplomatic directives from the Order Console,
-  • How 1-on-1 Leader Negotiations (\`reply_leader_chat\`), Multilateral Diplomatic Councils (\`convene_diplomatic_council\`), Chief Advisor Briefings (\`reply_advisor_chat\`), Animated Map Landmarks (\`manage_map_markers\`), and the World Chronicle Gazette (\`publish_world_event\`) work.
+  • Live War Room & Outbreak Radar (\`provoke_country\`, \`trigger_war_operation\`), Nuclear Stockpile Gating & Treaty Sharing (\`launch_nuclear_strike\`, \`transfer_nuclear_warheads\`), 1-click Save Cloning, 1-on-1 Leader Negotiations (\`reply_leader_chat\`), Full-Nation Multilateral Councils (\`convene_diplomatic_council\`), Chief Advisor Briefings (\`reply_advisor_chat\`), Animated Map Landmarks (\`manage_map_markers\`), and the World Chronicle Gazette (\`publish_world_event\`).
 
 STEP 3 — ENTER THE ZERO-IDLE-TOKEN GAME MASTER STANDBY LOOP:
-- Immediately after your briefing, call \`wait_for_player_action\` and wait cleanly with zero token burn until I submit an order, leader chat, council message, or turn advance in the web UI.
-- Whenever \`wait_for_player_action\` wakes you up, execute the historical simulation in English using \`transfer_territory\`, \`update_country_stats\`, \`manage_diplomacy\`, \`publish_world_event\`, \`manage_map_markers\`, and \`advance_turn\`, then call \`wait_for_player_action\` again!`;
+- Immediately after your briefing, call \`wait_for_player_action\` and wait cleanly with zero token burn until I submit an order, leader chat, war action, council message, or turn advance in the web UI.
+- Whenever \`wait_for_player_action\` wakes you up, execute the historical simulation in English using \`transfer_territory\`, \`update_country_stats\`, \`manage_diplomacy\`, \`trigger_war_operation\`, \`transfer_nuclear_warheads\`, \`publish_world_event\`, \`manage_map_markers\`, and \`advance_turn\`, then call \`wait_for_player_action\` again!`;
       }
     }
 
@@ -1897,7 +2196,7 @@ npm run dev
           ]
         : [
             { icon: ICONS.lock, title: "1. Strict MCP Security Gate", desc: "Campaign creation and map entry stay locked until an MCP client connects. As soon as your AI calls any tool, the gate unlocks live via SSE." },
-            { icon: ICONS.globe, title: "2. Live Bilingual MCP Sync (TR / EN)", desc: "Switching the UI language to English or Turkish dynamically switches all 14 MCP tool schemas, 9 resources, and AI directives to match." },
+            { icon: ICONS.globe, title: "2. Live Bilingual MCP Sync (TR / EN)", desc: "Switching the UI language to English or Turkish dynamically switches all 18 MCP tool schemas, 10 resources, and AI directives to match." },
             { icon: ICONS.cpu, title: "3. Zero-Idle-Token Standby Loop", desc: "wait_for_player_action blocks cleanly on a zero-cost Promise until you submit a command, diplomatic message, or turn advance." }
           ];
 
@@ -2007,6 +2306,63 @@ npm run dev
       `).join("");
     }
 
+    function setUpdateFilter(cat) {
+      activeUpdateFilter = cat;
+      renderUpdates();
+    }
+
+    function renderUpdates() {
+      const isTr = currentLang === "tr";
+      const cats = isTr
+        ? [
+            { id: "all", label: `Tüm Güncellemeler (${UPDATES.length})` },
+            { id: "diplomacy", label: "Nükleer & Konsey" },
+            { id: "war", label: "Canlı Savaş" },
+            { id: "saves", label: "Kayıt & Klon" },
+            { id: "platform", label: "Başlatıcı & Altyapı" }
+          ]
+        : [
+            { id: "all", label: `All Updates (${UPDATES.length})` },
+            { id: "diplomacy", label: "Nuclear & Councils" },
+            { id: "war", label: "Live Warfare" },
+            { id: "saves", label: "Saves & Cloning" },
+            { id: "platform", label: "Launcher & Core" }
+          ];
+
+      document.getElementById("updates-filter-pills").innerHTML = cats.map(c => `
+        <button type="button" class="sub-pill ${activeUpdateFilter === c.id ? "active" : ""}" onclick="setUpdateFilter('${c.id}')">
+          ${ICONS.sparkles}<span>${c.label}</span>
+        </button>
+      `).join("");
+
+      const filtered = UPDATES.filter(u => activeUpdateFilter === "all" || u.cat === activeUpdateFilter);
+      document.getElementById("updates-grid").innerHTML = filtered.map(u => {
+        const iconSvg = ICONS[u.icon] || ICONS.sparkles;
+        return `
+          <article class="update-card ${u.latest ? "is-latest" : ""}">
+            <div class="update-top">
+              <div class="update-badges">
+                <span class="update-ver-pill">${iconSvg}<span>${u.ver}</span></span>
+                <span class="update-cat-pill ${u.latest ? "latest" : ""}">${isTr ? u.trCat : u.enCat}</span>
+              </div>
+              <a class="update-commit-link" href="https://github.com/Mur4t0/Mur4History/commit/${u.commit}" target="_blank" rel="noopener noreferrer" title="GitHub Commit ${u.commit}">
+                ${ICONS.github}<span>${u.commit}</span>
+              </a>
+            </div>
+            <h3 class="update-title">${isTr ? u.trTitle : u.enTitle}</h3>
+            <div class="update-block">
+              <div class="update-block-label what">${ICONS.cpu}<span>${isTr ? "Ne Oldu?" : "What Changed"}</span></div>
+              <p>${isTr ? u.trWhat : u.enWhat}</p>
+            </div>
+            <div class="update-block">
+              <div class="update-block-label why">${ICONS.check}<span>${isTr ? "Ne İşe Yarar & Nasıl Kullanılır?" : "What It Does & How To Use It"}</span></div>
+              <p>${isTr ? u.trWhy : u.enWhy}</p>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
     function renderTools() {
       const isTr = currentLang === "tr";
       document.getElementById("tools-grid").innerHTML = MCP_TOOLS.map(t => `
@@ -2031,8 +2387,9 @@ npm run dev
       document.getElementById("nav-engine-tag").textContent = isTr ? "MCP" : "MCP";
       document.getElementById("nav-tut").textContent = isTr ? "Gelişmiş MCP Rehberi" : "Advanced MCP Tutorial";
       document.getElementById("nav-prompt").textContent = isTr ? "AI Kurulum Promptu" : "AI Setup Prompt";
+      document.getElementById("nav-updates").innerHTML = `${isTr ? "Güncellemeler" : "Updates"}<span class="nav-tab-badge"></span>`;
       document.getElementById("nav-scen").textContent = isTr ? "12 Senaryo" : "12 Scenarios";
-      document.getElementById("nav-tools").textContent = isTr ? "14 MCP Aracı" : "14 MCP Tools";
+      document.getElementById("nav-tools").textContent = isTr ? "18 MCP Aracı" : "18 MCP Tools";
       document.getElementById("nav-comm").textContent = isTr ? "Topluluk" : "Community";
 
       const badgeList = isTr
@@ -2070,14 +2427,14 @@ npm run dev
       const stats = isTr
         ? [
             { icon: ICONS.compass, val: "12 Dönem", lbl: "1444'ten 2026'ya Resmi Senaryo" },
-            { icon: ICONS.globe, val: "270 Eyalet", lbl: "MapLibre GL & 14 Harita Modu" },
-            { icon: ICONS.terminal, val: "14 MCP Aracı", lbl: "9 Canlı Kaynak & TR/EN Desteği" },
+            { icon: ICONS.globe, val: "270 Eyalet", lbl: "MapLibre GL & Canlı Savaş Efektleri" },
+            { icon: ICONS.terminal, val: "18 MCP Aracı", lbl: "10 Canlı Kaynak & TR/EN Desteği" },
             { icon: ICONS.bolt, val: "0 Idle Token", lbl: "wait_for_player_action Döngüsü" }
           ]
         : [
             { icon: ICONS.compass, val: "12 Eras", lbl: "Official Presets from 1444 to 2026" },
-            { icon: ICONS.globe, val: "270 Provinces", lbl: "MapLibre GL & 14 Map Modes" },
-            { icon: ICONS.terminal, val: "14 MCP Tools", lbl: "9 Live Resources & TR/EN Sync" },
+            { icon: ICONS.globe, val: "270 Provinces", lbl: "MapLibre GL & Live Combat FX" },
+            { icon: ICONS.terminal, val: "18 MCP Tools", lbl: "10 Live Resources & TR/EN Sync" },
             { icon: ICONS.bolt, val: "0 Idle Tokens", lbl: "wait_for_player_action Standby" }
           ];
 
@@ -2123,6 +2480,14 @@ npm run dev
 
       document.getElementById("copy-mega-prompt-btn").innerHTML = `${ICONS.copy}<span>${isTr ? "Uzun Kurulum & Tanıtım Promptunu Kopyala" : "Copy Full Setup & Game Intro Prompt"}</span>`;
 
+      document.getElementById("updates-eyebrow").innerHTML = `${ICONS.history}<span>${isTr ? "SON GÜNCELLEMELER & YAMA NOTLARI" : "LATEST UPDATES & CHANGELOG"}</span>`;
+      document.getElementById("sec-updates-title").textContent = isTr
+        ? "Güncellemeler: Ne Değişti ve Ne İşe Yarar?"
+        : "Updates: What Changed & How Every Feature Works";
+      document.getElementById("sec-updates-desc").textContent = isTr
+        ? "Depoya eklenen her yeni sistemin tam olarak ne olduğu, oyunda nasıl çalıştığı ve hangi stratejik imkanı sunduğu burada özetlenir."
+        : "Every new release pushed to Mur4History—what was built, why it matters, and how you can use it directly in campaigns.";
+
       document.getElementById("scen-eyebrow").innerHTML = `${ICONS.compass}<span>${isTr ? "TARİHSEL DÖNEMLER & HARİTA" : "HISTORICAL ERAS & ATLAS"}</span>`;
       document.getElementById("sec-scen-title").textContent = isTr
         ? "12 Resmi Tarihsel Preset Senaryo"
@@ -2133,11 +2498,11 @@ npm run dev
 
       document.getElementById("tools-eyebrow").innerHTML = `${ICONS.cpu}<span>${isTr ? "MODEL CONTEXT PROTOCOL MİMARİSİ" : "MODEL CONTEXT PROTOCOL ARCHITECTURE"}</span>`;
       document.getElementById("sec-tools-title").textContent = isTr
-        ? "14 MCP Aracı & Canlı Simülasyon Yetenekleri"
-        : "14 MCP Tools & Live Simulation Capabilities";
+        ? "18 MCP Aracı & Canlı Simülasyon Yetenekleri"
+        : "18 MCP Tools & Live Simulation Capabilities";
       document.getElementById("sec-tools-desc").textContent = isTr
-        ? "Yapay zeka istemciniz bu 14 aracı kullanarak haritadaki sınırları değiştirir, ülke ekonomilerini günceller, gazete manşetleri basar ve lider konseyleri yönetir."
-        : "Your connected AI uses these 14 native MCP tools to redraw borders, update national economies, publish gazette dispatches, and run multilateral summits.";
+        ? "Yapay zeka istemciniz bu 18 aracı kullanarak haritadaki sınırları değiştirir, canlı savaş ve nükleer başlık devirlerini yürütür, ülke ekonomilerini günceller, gazete manşetleri basar ve lider konseylerini yönetir."
+        : "Your connected AI uses these 18 native MCP tools to redraw borders, orchestrate live warfare and treaty nuclear transfers, update economies, publish gazette dispatches, and run multilateral summits.";
 
       document.getElementById("comm-eyebrow").innerHTML = `${ICONS.users}<span>${isTr ? "TOPLULUK & AÇIK KAYNAK" : "COMMUNITY & OPEN SOURCE"}</span>`;
       document.getElementById("sec-comm-title").textContent = isTr
@@ -2196,6 +2561,7 @@ npm run dev
       `;
 
       renderTutorial();
+      renderUpdates();
       renderScenarios();
       renderTools();
     }
