@@ -1091,13 +1091,14 @@ export function createGameMasterMcpServer(boundSessionId: string): McpServer {
               "AIR_STRIKE",
               "NAVAL_INVASION",
               "REBEL_UPRISING",
+              "ENVOY_AGITATION",
             ])
             .optional()
-            .describe(d("Askeri harekat türü.", "Military operation type.")),
+            .describe(d("Harekat veya gizli elçi/isyan türü.", "Military or covert envoy/uprising operation type.")),
           unit_type: z
-            .enum(["INFANTRY", "ARMOR", "AIR", "NAVAL"])
+            .enum(["INFANTRY", "ARMOR", "AIR", "NAVAL", "ENVOY"])
             .optional()
-            .describe(d("Haritada animasyonu çizilecek birim tipi (asker/tank/uçak/donanma).", "Animated unit sprite type.")),
+            .describe(d("Haritada animasyonu çizilecek birim tipi (asker/tank/uçak/donanma/elçi).", "Animated unit sprite type.")),
           intensity: z
             .number()
             .min(10)
@@ -1139,7 +1140,9 @@ export function createGameMasterMcpServer(boundSessionId: string): McpServer {
           intensity: args.intensity ?? 75,
           title: args.title,
           description: args.description,
-          autoDeclareWar: args.operation_type !== "REBEL_UPRISING",
+          autoDeclareWar:
+            args.operation_type !== "REBEL_UPRISING" &&
+            args.operation_type !== "ENVOY_AGITATION",
           skipAiWake: true,
         });
         return {

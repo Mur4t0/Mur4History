@@ -109,6 +109,7 @@ export function GameWorkspace({
   const [leaderChatOpen, setLeaderChatOpen] = useState(false);
   const [leaderChatTab, setLeaderChatTab] = useState<"direct" | "councils">("direct");
   const [leaderChatTarget, setLeaderChatTarget] = useState<string | null>(null);
+  const [leaderChatCouncilId, setLeaderChatCouncilId] = useState<string | null>(null);
   const [advisorOpen, setAdvisorOpen] = useState(false);
   const [warRoomOpen, setWarRoomOpen] = useState(false);
   const [warRoomTab, setWarRoomTab] = useState<"fronts" | "meddle" | "radar">("fronts");
@@ -499,11 +500,25 @@ export function GameWorkspace({
         const op = parsed.payload?.operation;
         if (op && op.operationType !== "NUCLEAR_STRIKE") {
           playWarActionSfx("launch", soundEnabledRef.current);
-          showToast(
-            trMode
-              ? `Askeri Harekat: ${op.attackerCode} → ${op.targetRegionName} (${op.defenderCode})`
-              : `Military Operation: ${op.attackerCode} → ${op.targetRegionName} (${op.defenderCode})`
-          );
+          if (op.operationType === "ENVOY_AGITATION") {
+            showToast(
+              trMode
+                ? `Gizli Elçiler Yola Çıktı: ${op.attackerCode} → ${op.targetRegionName} (${op.defenderCode})`
+                : `Covert Envoys Dispatched: ${op.attackerCode} → ${op.targetRegionName} (${op.defenderCode})`
+            );
+          } else if (op.operationType === "REBEL_UPRISING") {
+            showToast(
+              trMode
+                ? `Halk Ayaklanması Tetiklendi: ${op.targetRegionName} (${op.defenderCode})!`
+                : `Popular Uprising Ignited in ${op.targetRegionName} (${op.defenderCode})!`
+            );
+          } else {
+            showToast(
+              trMode
+                ? `Askeri Harekat: ${op.attackerCode} → ${op.targetRegionName} (${op.defenderCode})`
+                : `Military Operation: ${op.attackerCode} → ${op.targetRegionName} (${op.defenderCode})`
+            );
+          }
         }
       } catch {
         // Ignore parse issues
@@ -512,6 +527,7 @@ export function GameWorkspace({
     });
 
     source.addEventListener("war_operation_updated", (e) => {
+      const trMode = localeRef.current === "tr";
       try {
         const parsed = JSON.parse((e as MessageEvent).data) as {
           payload?: { operation?: WarOperationRecord };
@@ -519,6 +535,24 @@ export function GameWorkspace({
         const op = parsed.payload?.operation;
         if (op?.status === "CAPTURED") {
           playWarActionSfx("capture", soundEnabledRef.current);
+        } else if (op?.status === "AGITATED") {
+          showToast(
+            trMode
+              ? `Gizli elçiler ${op.targetRegionName} halkını kışkırttı — istikrar düştü!`
+              : `Covert envoys agitated crowds in ${op.targetRegionName} — stability dropped!`
+          );
+        } else if (op?.status === "UPRISING") {
+          showToast(
+            trMode
+              ? `HALK İSYANI: ${op.targetRegionName} (${op.defenderCode}) barikatlarla karıştı!`
+              : `POPULAR UPRISING: Civil revolt shook ${op.targetRegionName} (${op.defenderCode})!`
+          );
+        } else if (op?.status === "REPELLED") {
+          showToast(
+            trMode
+              ? `KUŞATMA PÜSKÜRTÜLDÜ: ${op.defenderCode} garnizonu ${op.targetRegionName} önlerinde ${op.attackerCode} taarruzunu kırdı!`
+              : `SIEGE REPELLED: ${op.defenderCode} garrison routed ${op.attackerCode} at ${op.targetRegionName}!`
+          );
         }
       } catch {
         // Ignore
@@ -934,6 +968,34 @@ export function GameWorkspace({
                 setWarRoomTab("meddle");
                 setWarRoomOpen(true);
               }}
+              onConvenePeaceCouncil={async (targetCode) => {
+                if (!session.playerCountryCode) return;
+                try {
+                  const res = await fetch(`/api/sessions/${session.id}/war`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      mode: "convene_peace_council",
+                      countryA: session.playerCountryCode,
+                      countryB: targetCode,
+                      locale,
+                    }),
+                  });
+                  const data = await res.json();
+                  if (res.ok && data.council?.id) {
+                    await refreshSession();
+                    setLeaderChatCouncilId(data.council.id);
+                    setLeaderChatTab("councils");
+                    setLeaderChatOpen(true);
+                  } else if (data.error) {
+                    showToast(data.error);
+                  }
+                } catch {
+                  // Ignore transient network error
+                }
+              }}
+              scenarioKey={session.scenarioId}
+              currentDate={session.currentDate}
             />
           </div>
         )}
@@ -1222,6 +1284,10 @@ export function GameWorkspace({
         councils={session.councils ?? []}
         initialTargetCode={leaderChatTarget}
         initialTab={leaderChatTab}
+        initialCouncilId={leaderChatCouncilId}
+        scenarioKey={session.scenarioId}
+        currentDate={session.currentDate}
+        difficulty={session.difficulty}
         onMessageSent={() => {
           void refreshSession();
         }}
@@ -1296,6 +1362,15 @@ export function GameWorkspace({
           setWarRoomOpen(false);
           openLeaderChatWith(patronCode, "direct");
         }}
+        onOpenPeaceCouncil={(councilId) => {
+          void refreshSession();
+          setLeaderChatCouncilId(councilId);
+          setLeaderChatTab("councils");
+          setLeaderChatOpen(true);
+        }}
+        scenarioKey={session.scenarioId}
+        currentDate={session.currentDate}
+        difficulty={session.difficulty}
       />
 
       {!(globalMcpStatus.connected || (session.mcpStatus?.connected ?? false)) && (

@@ -7,6 +7,7 @@ import {
   findNuclearPartners,
   isTreatyEligibleForNuclearSharing,
 } from "@/lib/nuclear-doctrine";
+import { getCountryBlocsAndPacts } from "@/lib/geopolitics";
 
 import {
   Bomb,
@@ -22,6 +23,7 @@ import {
   Sparkles,
   Swords,
   TrendingUp,
+  Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,6 +59,9 @@ interface CountrySidebarProps {
   }) => Promise<void> | void;
   onRequestNuclearSharing?: (patronCode?: string) => void;
   onOpenWarMeddle?: (targetCode: string) => void;
+  onConvenePeaceCouncil?: (targetCode: string) => void;
+  scenarioKey?: string | null;
+  currentDate?: string | null;
 }
 
 const DIPLO_BADGE: Record<
@@ -81,6 +86,10 @@ const DIPLO_BADGE: Record<
 
 const STRATEGIC_STATUS_LABEL: Record<string, { tr: string; en: string }> = {
   CAPITAL: { tr: "Başkent", en: "Capital" },
+  CORE: { tr: "Çekirdek", en: "Core" },
+  FRONTIER: { tr: "Sınır", en: "Frontier" },
+  OCCUPIED: { tr: "İşgal Altında", en: "Occupied" },
+  CONTESTED: { tr: "Çekişmeli (İsyan)", en: "Contested (Unrest)" },
   FORTIFIED: { tr: "Müstahkem", en: "Fortified" },
   ECONOMIC_HUB: { tr: "Ekonomi Merkezi", en: "Economic Hub" },
   STANDARD: { tr: "Standart", en: "Standard" },
@@ -146,6 +155,9 @@ export function CountrySidebar({
   onQuickWarAction,
   onRequestNuclearSharing,
   onOpenWarMeddle,
+  onConvenePeaceCouncil,
+  scenarioKey,
+  currentDate,
 }: CountrySidebarProps) {
   const { locale } = useLocale();
   const isTr = locale === "tr";
@@ -202,6 +214,14 @@ export function CountrySidebar({
       d.status !== "NEUTRAL"
   );
 
+  const countryBlocs = getCountryBlocsAndPacts({
+    countryCode: country.code,
+    scenarioKey,
+    currentDate,
+    diplomacies,
+    locale,
+  });
+
   return (
     <aside className="flex h-full flex-col overflow-hidden border-r border-border/80 bg-[#0b1019]/90 backdrop-blur-md">
       {/* Header */}
@@ -231,6 +251,23 @@ export function CountrySidebar({
                   </Badge>
                 )}
               </div>
+              {countryBlocs.length > 0 && (
+                <div
+                  data-testid="sidebar-country-blocs"
+                  className="mt-2 flex flex-wrap gap-1"
+                >
+                  {countryBlocs.map((b) => (
+                    <span
+                      key={b.id}
+                      title={b.label}
+                      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-bold tracking-tight ${b.colorClass}`}
+                    >
+                      <Shield className="h-2.5 w-2.5" />
+                      {b.shortLabel}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -346,6 +383,11 @@ export function CountrySidebar({
                     size="sm"
                     variant="outline"
                     disabled={warBusy}
+                    title={
+                      isTr
+                        ? "Gizli elçi gönderip halkı kışkırtır; istikrar kritik düzeye indiğinde iç isyan çıkarır (toprak ilhakı yapmaz — doğrudan fetih için Kuşat / Tank Sür kullanın)"
+                        : "Dispatches covert envoys to agitate citizens and erode stability until an internal uprising erupts (does not annex land — use Tank Blitz for conquest)"
+                    }
                     onClick={async () => {
                       setWarBusy(true);
                       try {
@@ -359,10 +401,10 @@ export function CountrySidebar({
                         setWarBusy(false);
                       }
                     }}
-                    className="h-7 border-orange-500/40 text-[10px] text-orange-300 hover:bg-orange-500/15"
+                    className="h-7 border-purple-500/45 text-[10px] text-purple-300 hover:bg-purple-500/15"
                   >
                     <Sparkles className="h-3 w-3" />
-                    {isTr ? "İsyancı Destekle" : "Sponsor Rebels"}
+                    {isTr ? "Elçi & İsyan" : "Send Envoys"}
                   </Button>
 
                   <Button
@@ -397,6 +439,21 @@ export function CountrySidebar({
                     >
                       <Flame className="h-3 w-3" />
                       {isTr ? "Birbirine Düşür" : "Incite War"}
+                    </Button>
+                  )}
+
+                  {warRiskWithPlayer.status === "WAR" && onConvenePeaceCouncil && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-testid="sidebar-peace-council-btn"
+                      onClick={() => onConvenePeaceCouncil(country.code)}
+                      className="col-span-2 h-7 border-emerald-500/50 bg-emerald-950/25 text-[10px] font-semibold text-emerald-300 hover:bg-emerald-500/20"
+                    >
+                      <Users className="h-3 w-3" />
+                      {isTr
+                        ? "Savaşı Bitirmek İçin Barış Konseyi Topla"
+                        : "Convene Peace Council to End War"}
                     </Button>
                   )}
 
@@ -616,8 +673,8 @@ export function CountrySidebar({
               {selectedRegion.transferReason && (
                 <div className="mt-1 rounded bg-secondary/70 p-1.5 text-[11px] text-amber-300">
                   {isTr
-                    ? `Son Değişim (Tur ${selectedRegion.lastTransferredTurn}):`
-                    : `Last Change (Turn ${selectedRegion.lastTransferredTurn}):`}{" "}
+                    ? `Son Değişim (Tur ${selectedRegion.lastTransferredTurn ?? 1}):`
+                    : `Last Change (Turn ${selectedRegion.lastTransferredTurn ?? 1}):`}{" "}
                   {selectedRegion.transferReason}
                 </div>
               )}
@@ -666,6 +723,34 @@ export function CountrySidebar({
                       {MARKER_CAT_LABEL[mk.category]?.[locale] ?? mk.category}
                     </Badge>
                   </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Alliances, Blocs & International Organizations (NATO, Warsaw Pact, EU, BRICS, etc.) */}
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              {isTr
+                ? `Üye Olduğu Paktlar & Birlikler (${countryBlocs.length})`
+                : `Blocs, Pacts & Memberships (${countryBlocs.length})`}
+            </h3>
+            {countryBlocs.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border p-3 text-[11px] text-muted-foreground">
+                {isTr
+                  ? "Bu ülke şu anda NATO, Varşova Paktı veya herhangi bir çok uluslu ittifak bloğuna üye değil (Bağımsız / Tarafsız)."
+                  : "This nation is not currently part of NATO, Warsaw Pact, or any major multilateral bloc (Independent / Non-Aligned)."}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5 rounded-lg border border-border/70 bg-secondary/25 p-2.5">
+                {countryBlocs.map((b) => (
+                  <div
+                    key={b.id}
+                    className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold ${b.colorClass}`}
+                  >
+                    <Shield className="h-3 w-3 shrink-0" />
+                    <span>{b.label}</span>
+                  </div>
                 ))}
               </div>
             )}

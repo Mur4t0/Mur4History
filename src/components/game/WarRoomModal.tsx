@@ -9,14 +9,20 @@ import {
   Play,
   Radiation,
   RotateCcw,
+  Shield,
   ShieldAlert,
   Sparkles,
   Swords,
+  Users,
   Zap,
 } from "lucide-react";
 import { useLocale } from "@/components/LanguageProvider";
 import { getCountryDisplayName } from "@/lib/i18n";
 import { findNuclearPartners } from "@/lib/nuclear-doctrine";
+import {
+  getCountryBlocsAndPacts,
+  getWarDifficultyProfile,
+} from "@/lib/geopolitics";
 import type {
   CountryRecord,
   DiplomacyRecord,
@@ -63,6 +69,10 @@ interface WarRoomModalProps {
   onWarUpdated: () => void;
   onReplayNuke?: (op: WarOperationRecord) => void;
   onOpenLeaderNuclear?: (patronCode?: string) => void;
+  onOpenPeaceCouncil?: (councilId: string) => void;
+  scenarioKey?: string | null;
+  currentDate?: string | null;
+  difficulty?: string | null;
 }
 
 const OP_TYPE_LABEL: Record<string, { tr: string; en: string }> = {
@@ -71,7 +81,8 @@ const OP_TYPE_LABEL: Record<string, { tr: string; en: string }> = {
   ASSAULT: { tr: "Sınır Baskını", en: "Border Assault" },
   AIR_STRIKE: { tr: "Hava Akını / Bombardıman", en: "Air Strike" },
   NAVAL_INVASION: { tr: "Deniz Çıkarması", en: "Naval Invasion" },
-  REBEL_UPRISING: { tr: "Vekil İsyancı Kuşatması", en: "Rebel Uprising" },
+  ENVOY_AGITATION: { tr: "Gizli Elçi Sızması", en: "Covert Envoy Agitation" },
+  REBEL_UPRISING: { tr: "Halk Ayaklanması (İç İsyan)", en: "Popular Uprising (Internal Revolt)" },
   NUCLEAR_STRIKE: { tr: "Stratejik Nükleer Saldırı", en: "Nuclear Strike" },
 };
 
@@ -104,9 +115,14 @@ export function WarRoomModal({
   onWarUpdated,
   onReplayNuke,
   onOpenLeaderNuclear,
+  onOpenPeaceCouncil,
+  scenarioKey,
+  currentDate,
+  difficulty,
 }: WarRoomModalProps) {
   const { locale } = useLocale();
   const isTr = locale === "tr";
+  const diffProfile = getWarDifficultyProfile(difficulty);
 
   const countryByCode = useMemo(
     () => new Map(countries.map((c) => [c.code, c])),
@@ -195,7 +211,11 @@ export function WarRoomModal({
   const recentCompleted = useMemo(
     () =>
       warOperations
-        .filter((op) => ["CAPTURED", "DETONATED", "REPELLED"].includes(op.status))
+        .filter((op) =>
+          ["CAPTURED", "DETONATED", "REPELLED", "UPRISING", "AGITATED"].includes(
+            op.status
+          )
+        )
         .slice(0, 12),
     [warOperations]
   );
@@ -261,23 +281,57 @@ export function WarRoomModal({
       return;
     }
 
+    const isCovertOp =
+      opType === "REBEL_UPRISING" || opType === "ENVOY_AGITATION";
     const res = await callWarApi({
       mode: "launch_operation",
       attackerCode,
       defenderCode,
       targetRegionId: targetRegionId === "AUTO" ? undefined : targetRegionId,
       operationType: opType,
-      intensity: 78,
-      autoDeclareWar: opType !== "REBEL_UPRISING",
+      intensity: opType === "ENVOY_AGITATION" ? 50 : 78,
+      autoDeclareWar: !isCovertOp,
     });
     if (res) {
       setFeedback(
-        isTr
-          ? `${attackerCode} birlikleri haritada ${defenderCode} hedefine doğru harekete geçti!`
-          : `${attackerCode} units deployed toward ${defenderCode} on the live map!`
+        opType === "ENVOY_AGITATION"
+          ? isTr
+            ? `${attackerCode} gizli elçileri ${defenderCode} halkını kışkırtmak üzere yola çıktı (toprak ilhak etmez).`
+            : `${attackerCode} covert envoys deployed to agitate citizens inside ${defenderCode} (does not annex territory).`
+          : opType === "REBEL_UPRISING"
+            ? isTr
+              ? `${defenderCode} içinde halk ayaklanması tetiklendi — bölge statüsü çekişmeli hale getirilecek (toprak ilhak etmez).`
+              : `Internal uprising ignited inside ${defenderCode} (destabilizes regime without annexing land).`
+            : isTr
+              ? `${attackerCode} birlikleri haritada ${defenderCode} hedefine doğru harekete geçti!`
+              : `${attackerCode} units deployed toward ${defenderCode} on the live map!`
       );
     }
   };
+
+  const handleConvenePeaceCouncil = async (codeA: string, codeB: string) => {
+    const res = await callWarApi({
+      mode: "convene_peace_council",
+      countryA: codeA,
+      countryB: codeB,
+    });
+    if (res?.council?.id && onOpenPeaceCouncil) {
+      onOpenChange(false);
+      onOpenPeaceCouncil(res.council.id);
+    }
+  };
+
+  const defenderBlocs = useMemo(
+    () =>
+      getCountryBlocsAndPacts({
+        countryCode: defenderCode,
+        scenarioKey,
+        currentDate,
+        diplomacies,
+        locale,
+      }),
+    [defenderCode, scenarioKey, currentDate, diplomacies, locale]
+  );
 
   const filteredRadar = useMemo(() => {
     const q = radarSearch.trim().toLowerCase();
@@ -416,21 +470,27 @@ export function WarRoomModal({
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div>
                       <label className="mb-1 block text-[11px] text-muted-foreground">
-                        {isTr ? "Saldıran Ülke" : "Attacker"}
+                        {isTr ? "Komuta Edilen Ülke (Siz)" : "Your Command"}
                       </label>
-                      <Select value={attackerCode} onValueChange={setAttackerCode}>
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {sortedCountries.map((c) => (
-                            <SelectItem key={c.code} value={c.code}>
-                              {c.flagEmoji}{" "}
-                              {getCountryDisplayName(c.code, c.name, locale)} ({c.code})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div
+                        data-testid="warroom-locked-attacker"
+                        className="flex h-9 items-center justify-between rounded-md border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-foreground"
+                        title={
+                          isTr
+                            ? "Doğrudan askeri harekât ve nükleer emirleri yalnızca kendi yönettiğiniz ülkeye verebilirsiniz."
+                            : "You can only issue direct military and nuclear commands for your own nation."
+                        }
+                      >
+                        <span className="truncate">
+                          {attackerCountry?.flagEmoji}{" "}
+                          {getCountryDisplayName(
+                            attackerCode,
+                            attackerCountry?.name ?? attackerCode,
+                            locale
+                          )}{" "}
+                          ({attackerCode})
+                        </span>
+                      </div>
                     </div>
 
                     <div>
@@ -459,6 +519,23 @@ export function WarRoomModal({
                             ))}
                         </SelectContent>
                       </Select>
+                      {defenderBlocs.length > 0 && (
+                        <div
+                          data-testid="warroom-defender-blocs"
+                          className="mt-1 flex flex-wrap gap-1"
+                        >
+                          {defenderBlocs.map((b) => (
+                            <span
+                              key={b.id}
+                              title={b.label}
+                              className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-bold ${b.colorClass}`}
+                            >
+                              <Shield className="h-2.5 w-2.5" />
+                              {b.shortLabel}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -509,8 +586,15 @@ export function WarRoomModal({
                           <SelectItem value="NAVAL_INVASION">
                             {isTr ? "Deniz Çıkarması" : "Naval Invasion"}
                           </SelectItem>
+                          <SelectItem value="ENVOY_AGITATION">
+                            {isTr
+                              ? "Gizli Elçi Gönder & Halkı Kışkırt (Toprak Almaz)"
+                              : "Send Covert Envoys & Agitate Citizens (No Annex)"}
+                          </SelectItem>
                           <SelectItem value="REBEL_UPRISING">
-                            {isTr ? "Vekil İsyancı Kuşatması" : "Rebel Uprising Siege"}
+                            {isTr
+                              ? "Halk Ayaklanması Çıkar (İç İsyan — Toprak Almaz)"
+                              : "Ignite Popular Uprising (Internal Revolt — No Annex)"}
                           </SelectItem>
                           <SelectItem value="NUCLEAR_STRIKE">
                             {attackerWarheads > 0
@@ -649,9 +733,17 @@ export function WarRoomModal({
                           ? isTr
                             ? "Nükleer Saldırı Başlat"
                             : "Launch Nuclear Strike"
-                          : isTr
-                            ? "Birlikleri Haritada Yürüt!"
-                            : "Deploy Units on Map!"}
+                          : opType === "ENVOY_AGITATION"
+                            ? isTr
+                              ? "Gizli Elçileri Gönder"
+                              : "Dispatch Covert Envoys"
+                            : opType === "REBEL_UPRISING"
+                              ? isTr
+                                ? "Halk Ayaklanması Çıkar"
+                                : "Ignite Popular Uprising"
+                              : isTr
+                                ? "Birlikleri Haritada Yürüt!"
+                                : "Deploy Units on Map!"}
                       </Button>
                     )}
                   </div>
@@ -677,55 +769,123 @@ export function WarRoomModal({
                         const atk = countryByCode.get(op.attackerCode);
                         const def = countryByCode.get(op.defenderCode);
                         const typeMeta = OP_TYPE_LABEL[op.operationType];
+                        const isEnvoyOp = op.operationType === "ENVOY_AGITATION";
+                        const isRebelOp = op.operationType === "REBEL_UPRISING";
                         return (
                           <div
                             key={op.id}
-                            className="rounded-xl border border-rose-500/35 bg-[#0e1524] p-3 text-xs space-y-2"
+                            className={`rounded-xl border p-3 text-xs space-y-2 ${
+                              isEnvoyOp
+                                ? "border-purple-500/35 bg-[#120e24]"
+                                : isRebelOp
+                                  ? "border-orange-500/35 bg-[#1a110b]"
+                                  : "border-rose-500/35 bg-[#0e1524]"
+                            }`}
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div>
                                 <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                                  <span>{atk?.flagEmoji ?? ""}</span>
-                                  <span>{op.attackerCode}</span>
-                                  <span className="text-rose-400">⚔</span>
-                                  <span>{def?.flagEmoji ?? ""}</span>
-                                  <span>{op.defenderCode}</span>
+                                  {isRebelOp ? (
+                                    <>
+                                      <span>{isTr ? "İSYAN" : "REBELS"}</span>
+                                      <span className="text-orange-400">⚔</span>
+                                      <span>{def?.flagEmoji ?? ""}</span>
+                                      <span>{op.defenderCode}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span>{atk?.flagEmoji ?? ""}</span>
+                                      <span>{op.attackerCode}</span>
+                                      <span className={isEnvoyOp ? "text-purple-400" : "text-rose-400"}>
+                                        {isEnvoyOp ? "→" : "⚔"}
+                                      </span>
+                                      <span>{def?.flagEmoji ?? ""}</span>
+                                      <span>{op.defenderCode}</span>
+                                    </>
+                                  )}
                                 </div>
                                 <div className="mt-0.5 text-[11px] font-medium text-amber-200">
                                   {op.targetRegionName}
                                 </div>
                               </div>
-                              <Badge variant="destructive">
-                                {op.status === "MARCHING"
+                              <Badge variant={isEnvoyOp ? "secondary" : isRebelOp ? "warning" : "destructive"}>
+                                {isEnvoyOp
                                   ? isTr
-                                    ? "YÜRÜYÜŞTE"
-                                    : "MARCHING"
-                                  : isTr
-                                    ? "KUŞATMA"
-                                    : "BESIEGING"}
+                                    ? "ELÇİ SIZMASI"
+                                    : "ENVOYS"
+                                  : isRebelOp
+                                    ? isTr
+                                      ? "İÇ İSYAN"
+                                      : "UPRISING"
+                                    : op.status === "MARCHING"
+                                      ? isTr
+                                        ? "YÜRÜYÜŞTE"
+                                        : "MARCHING"
+                                      : isTr
+                                        ? "KUŞATMA"
+                                        : "BESIEGING"}
                               </Badge>
                             </div>
 
                             <div className="text-[11px] text-muted-foreground">
                               {typeMeta?.[locale] ?? op.operationType} •{" "}
-                              {isTr ? "Saldıran Kaybı" : "Atk Loss"}: {op.attackerLosses} |{" "}
-                              {isTr ? "Savunan Kaybı" : "Def Loss"}: {op.defenderLosses}
+                              {isTr ? "Kayıp / Ajan" : "Atk Loss"}: {op.attackerLosses} |{" "}
+                              {isTr ? "Hedef Kaybı" : "Def Loss"}: {op.defenderLosses}
                             </div>
 
                             <div className="space-y-1">
                               <div className="flex justify-between font-mono text-[10px]">
-                                <span>{isTr ? "Ele Geçirme" : "Capture Progress"}</span>
+                                <span>
+                                  {isEnvoyOp
+                                    ? isTr
+                                      ? "Kışkırtma İlerlemesi"
+                                      : "Agitation Progress"
+                                    : isRebelOp
+                                      ? isTr
+                                        ? "Ayaklanma İlerlemesi"
+                                        : "Uprising Progress"
+                                      : isTr
+                                        ? "Ele Geçirme"
+                                        : "Capture Progress"}
+                                </span>
                                 <span className="font-bold text-amber-300">
                                   %{op.progress}
                                 </span>
                               </div>
                               <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
                                 <div
-                                  className="h-full rounded-full bg-gradient-to-r from-amber-500 via-rose-500 to-emerald-400 transition-all duration-300"
+                                  className={`h-full rounded-full transition-all duration-300 ${
+                                    isEnvoyOp
+                                      ? "bg-gradient-to-r from-purple-500 via-fuchsia-400 to-amber-400"
+                                      : "bg-gradient-to-r from-amber-500 via-rose-500 to-emerald-400"
+                                  }`}
                                   style={{ width: `${op.progress}%` }}
                                 />
                               </div>
                             </div>
+
+                            {!isEnvoyOp && !isRebelOp && (
+                              <div className="flex justify-end pt-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={busy}
+                                  data-testid={`front-peace-council-${op.attackerCode}-${op.defenderCode}`}
+                                  onClick={() =>
+                                    void handleConvenePeaceCouncil(
+                                      op.attackerCode,
+                                      op.defenderCode
+                                    )
+                                  }
+                                  className="h-6 border-emerald-500/45 bg-emerald-950/20 px-2 text-[10px] font-semibold text-emerald-300 hover:bg-emerald-500/20"
+                                >
+                                  <Users className="h-3 w-3" />
+                                  {isTr
+                                    ? "Barış Konseyi Topla"
+                                    : "Convene Peace Council"}
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -738,8 +898,8 @@ export function WarRoomModal({
                   <div className="space-y-2">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       {isTr
-                        ? "Son Fetihler & Nükleer Saldırılar"
-                        : "Recent Captures & Nuclear Detonations"}
+                        ? "Son Fetihler, İsyanlar & Nükleer Saldırılar"
+                        : "Recent Captures, Uprisings & Nukes"}
                     </h4>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {recentCompleted.map((op) => (
@@ -752,7 +912,25 @@ export function WarRoomModal({
                               {op.title}
                             </div>
                             <div className="text-[10px] text-muted-foreground">
-                              {op.attackerCode} → {op.targetRegionName} ({op.status})
+                              {op.attackerCode} → {op.targetRegionName} (
+                              {op.status === "REPELLED"
+                                ? isTr
+                                  ? "PÜSKÜRTÜLDÜ"
+                                  : "REPELLED"
+                                : op.status === "CAPTURED"
+                                  ? isTr
+                                    ? "ELE GEÇİRİLDİ"
+                                    : "CAPTURED"
+                                  : op.status === "UPRISING"
+                                    ? isTr
+                                      ? "İÇ İSYAN"
+                                      : "UPRISING"
+                                    : op.status === "AGITATED"
+                                      ? isTr
+                                        ? "HALK KIŞKIRTILDI"
+                                        : "AGITATED"
+                                      : op.status}
+                              )
                             </div>
                           </div>
                           {op.operationType === "NUCLEAR_STRIKE" && onReplayNuke && (
@@ -881,7 +1059,7 @@ export function WarRoomModal({
                     )}
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       disabled={busy || meddleA === meddleB}
                       onClick={() =>
@@ -897,29 +1075,14 @@ export function WarRoomModal({
                     >
                       <Flame className="h-4 w-4" />
                       {isTr
-                        ? "Sınır Olayı Tezgahla & Birbirine Düşür! (+%38 Gerilim)"
-                        : "Stage False-Flag & Incite War! (+38% Tension)"}
+                        ? `Sahte Bayrak & Sınır Sabotajı Tezgahla! (+%${diffProfile.falseFlagTensionDelta} Gerilim • ${diffProfile.falseFlagCost} Bütçe)`
+                        : `Stage False-Flag Sabotage! (+${diffProfile.falseFlagTensionDelta}% Tension • ${diffProfile.falseFlagCost} Treasury)`}
                     </Button>
-
-                    <Button
-                      variant="destructive"
-                      disabled={busy || meddleA === meddleB}
-                      onClick={() =>
-                        callWarApi({
-                          mode: "launch_operation",
-                          attackerCode: meddleA,
-                          defenderCode: meddleB,
-                          operationType: "TANK_BLITZ",
-                          intensity: 82,
-                          autoDeclareWar: true,
-                        })
-                      }
-                    >
-                      <Swords className="h-4 w-4" />
+                    <span className="text-[11px] text-muted-foreground">
                       {isTr
-                        ? `${meddleA} → ${meddleB} Doğrudan Savaş Başlat`
-                        : `Trigger ${meddleA} → ${meddleB} Direct War`}
-                    </Button>
+                        ? `(Seçili zorlukta savaş çıkma eşiği: %${diffProfile.falseFlagWarThreshold}+ olasılık)`
+                        : `(At current difficulty, open war erupts at >=${diffProfile.falseFlagWarThreshold}% probability)`}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -947,6 +1110,20 @@ export function WarRoomModal({
                   const meta = RISK_META[risk.riskLevel] ?? RISK_META.LOW;
                   const cA = countryByCode.get(risk.countryA);
                   const cB = countryByCode.get(risk.countryB);
+                  const blocsA = getCountryBlocsAndPacts({
+                    countryCode: risk.countryA,
+                    scenarioKey,
+                    currentDate,
+                    diplomacies,
+                    locale,
+                  });
+                  const blocsB = getCountryBlocsAndPacts({
+                    countryCode: risk.countryB,
+                    scenarioKey,
+                    currentDate,
+                    diplomacies,
+                    locale,
+                  });
                   return (
                     <div
                       key={`${risk.countryA}-${risk.countryB}`}
@@ -962,6 +1139,13 @@ export function WarRoomModal({
                               locale
                             )}
                           </span>
+                          {blocsA[0] && (
+                            <span
+                              className={`rounded border px-1.5 py-0.2 text-[9px] font-bold ${blocsA[0].colorClass}`}
+                            >
+                              {blocsA[0].shortLabel}
+                            </span>
+                          )}
                           <span className="text-muted-foreground">↔</span>
                           <span className="font-semibold text-foreground">
                             {cB?.flagEmoji ?? ""}{" "}
@@ -971,6 +1155,13 @@ export function WarRoomModal({
                               locale
                             )}
                           </span>
+                          {blocsB[0] && (
+                            <span
+                              className={`rounded border px-1.5 py-0.2 text-[9px] font-bold ${blocsB[0].colorClass}`}
+                            >
+                              {blocsB[0].shortLabel}
+                            </span>
+                          )}
                           <Badge variant={meta.variant}>
                             {isTr ? `%${risk.probability}` : `${risk.probability}%`} •{" "}
                             {meta[locale]}
@@ -1029,16 +1220,17 @@ export function WarRoomModal({
                             size="sm"
                             variant="outline"
                             disabled={busy}
+                            data-testid={`radar-peace-council-${risk.countryA}-${risk.countryB}`}
                             onClick={() =>
-                              callWarApi({
-                                mode: "ceasefire",
-                                countryA: risk.countryA,
-                                countryB: risk.countryB,
-                              })
+                              void handleConvenePeaceCouncil(
+                                risk.countryA,
+                                risk.countryB
+                              )
                             }
-                            className="h-7 border-emerald-500/40 text-[11px] text-emerald-300"
+                            className="h-7 border-emerald-500/45 bg-emerald-950/20 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/20"
                           >
-                            {isTr ? "Ateşkes" : "Ceasefire"}
+                            <Users className="h-3 w-3" />
+                            {isTr ? "Barış Konseyi Topla" : "Convene Peace Council"}
                           </Button>
                         )}
                       </div>

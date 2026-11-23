@@ -270,6 +270,60 @@ function drawWarshipSprite(
   ctx.restore();
 }
 
+function drawEnvoySprite(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  angle: number,
+  phase: number,
+  color: string
+) {
+  ctx.save();
+  ctx.translate(x, y);
+  const floatY = Math.sin(phase) * 2.0;
+  const dir = Math.cos(angle) >= 0 ? 1 : -1;
+  ctx.translate(0, floatY);
+  ctx.scale(dir, 1);
+
+  // Subtle stealth halo
+  const pulse = 0.25 + Math.abs(Math.sin(phase * 0.7)) * 0.25;
+  ctx.fillStyle = `rgba(192, 132, 252, ${pulse})`;
+  ctx.beginPath();
+  ctx.arc(0, -1, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Flowing covert cloak
+  ctx.fillStyle = "#312e81";
+  ctx.strokeStyle = "#c084fc";
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.moveTo(0, -8);
+  ctx.lineTo(5.5, 6);
+  ctx.lineTo(-6.5, 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Hooded envoy head & emissary trim
+  ctx.fillStyle = "#1e1b4b";
+  ctx.beginPath();
+  ctx.arc(0, -6.5, 3.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.fillRect(-2, -1, 4, 2.5);
+
+  // Agitation scroll / dispatch pouch held forward
+  ctx.fillStyle = "#fbbf24";
+  ctx.strokeStyle = "#78350f";
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.roundRect(3.2, -3.2, 4.4, 3.4, 1);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.restore();
+}
+
 function drawNuclearDetonation(
   ctx: CanvasRenderingContext2D,
   pFrom: { x: number; y: number },
@@ -653,10 +707,12 @@ export function WarEffectsCanvas({
         }
       }
 
-      // 2. Render live marching armies, tanks, jets, warships & active siege perimeters
+      // 2. Render live marching armies, tanks, jets, warships, covert envoys & uprising flames
       for (const op of liveOps) {
         const attacker = countryMap.get(op.attackerCode);
         const atkColor = attacker?.color || "#ef4444";
+        const isEnvoy = op.operationType === "ENVOY_AGITATION" || op.unitType === "ENVOY";
+        const isRebel = op.operationType === "REBEL_UPRISING";
         const pFrom = map.project([op.fromLng, op.fromLat]);
         const pTo = map.project([
           wrapTargetLng(op.fromLng, op.targetLng),
@@ -668,16 +724,21 @@ export function WarEffectsCanvas({
         const dist = Math.hypot(dx, dy);
         const angle = Math.atan2(dy, dx);
 
-        // Advance Arrow Vector
-        if (dist > 8) {
+        // Advance Arrow / Covert Infiltration Vector
+        if (dist > 8 && !isRebel) {
           ctx.save();
           const grad = ctx.createLinearGradient(pFrom.x, pFrom.y, pTo.x, pTo.y);
-          grad.addColorStop(0, "rgba(248, 250, 252, 0.25)");
-          grad.addColorStop(1, "rgba(239, 68, 68, 0.92)");
+          if (isEnvoy) {
+            grad.addColorStop(0, "rgba(192, 132, 252, 0.22)");
+            grad.addColorStop(1, "rgba(245, 158, 11, 0.88)");
+          } else {
+            grad.addColorStop(0, "rgba(248, 250, 252, 0.25)");
+            grad.addColorStop(1, "rgba(239, 68, 68, 0.92)");
+          }
           ctx.strokeStyle = grad;
-          ctx.lineWidth = 3;
-          ctx.setLineDash([10, 6]);
-          ctx.lineDashOffset = -nowSec * 36;
+          ctx.lineWidth = isEnvoy ? 2.2 : 3;
+          ctx.setLineDash(isEnvoy ? [5, 7] : [10, 6]);
+          ctx.lineDashOffset = -nowSec * (isEnvoy ? 24 : 36);
           ctx.beginPath();
           ctx.moveTo(pFrom.x, pFrom.y);
           ctx.lineTo(pTo.x, pTo.y);
@@ -687,7 +748,7 @@ export function WarEffectsCanvas({
           ctx.setLineDash([]);
           ctx.translate(pTo.x, pTo.y);
           ctx.rotate(angle);
-          ctx.fillStyle = "#ef4444";
+          ctx.fillStyle = isEnvoy ? "#c084fc" : "#ef4444";
           ctx.beginPath();
           ctx.moveTo(-4, 0);
           ctx.lineTo(-16, -6);
@@ -697,13 +758,15 @@ export function WarEffectsCanvas({
           ctx.fill();
           ctx.restore();
 
-          // Animated marching units along vector
-          const count = op.unitType === "ARMOR" ? 2 : 3;
+          // Animated units along vector
+          const count = isEnvoy ? 2 : op.unitType === "ARMOR" ? 2 : 3;
           for (let i = 0; i < count; i++) {
-            const rawT = (nowSec * (op.unitType === "AIR" ? 0.36 : 0.19) + i / count) % 0.92;
+            const rawT = (nowSec * (op.unitType === "AIR" ? 0.36 : isEnvoy ? 0.22 : 0.19) + i / count) % 0.92;
             const ux = pFrom.x + dx * rawT;
             const uy = pFrom.y + dy * rawT;
-            if (op.unitType === "ARMOR") {
+            if (isEnvoy) {
+              drawEnvoySprite(ctx, ux, uy, angle, nowSec * 5 + i * 2.3, atkColor);
+            } else if (op.unitType === "ARMOR") {
               drawTankSprite(ctx, ux, uy, angle, nowSec * 4 + i * 2.1, atkColor);
               // Occasional tracer shell arcing to target
               const shellPhase = (nowSec * 1.4 + i * 0.5) % 1;
@@ -729,16 +792,32 @@ export function WarEffectsCanvas({
           }
         }
 
-        // Active Siege Encirclement & Impact Sparks around pTo
+        // Local insurgent militia skirmishing around target city when REBEL_UPRISING
+        if (isRebel) {
+          for (let m = 0; m < 3; m++) {
+            const orb = nowSec * 1.4 + (m * Math.PI * 2) / 3;
+            const rx = pTo.x + Math.cos(orb) * 18;
+            const ry = pTo.y + Math.sin(orb) * 12;
+            drawSoldierSprite(ctx, rx, ry, orb + Math.PI / 2, nowSec * 9 + m, "#f97316");
+          }
+        }
+
+        // Active Encirclement / Agitation / Uprising Perimeter around pTo
         const isBesieging = op.status === "BESIEGING" || op.status === "ACTIVE";
         const ringRadius = isBesieging ? 22 : 14;
         ctx.save();
         ctx.translate(pTo.x, pTo.y);
 
-        // Rotating crimson siege ring segments
+        // Rotating perimeter ring segments
         ctx.rotate(nowSec * (isBesieging ? 1.5 : 0.8));
-        ctx.strokeStyle = isBesieging ? "#ef4444" : "#f59e0b";
-        ctx.lineWidth = 2.6;
+        ctx.strokeStyle = isEnvoy
+          ? "#c084fc"
+          : isRebel
+            ? "#f97316"
+            : isBesieging
+              ? "#ef4444"
+              : "#f59e0b";
+        ctx.lineWidth = isEnvoy ? 2.1 : 2.6;
         for (let s = 0; s < 4; s++) {
           ctx.beginPath();
           ctx.arc(
@@ -751,15 +830,17 @@ export function WarEffectsCanvas({
           ctx.stroke();
         }
 
-        // Explosion impact flashes inside besieged target
+        // Explosion / agitation impact flashes inside target city
         if (isBesieging) {
           for (let b = 0; b < 3; b++) {
             const bt = (nowSec * 1.8 + b * 0.37) % 1;
             const bx = Math.cos(b * 2.1 + Math.floor(nowSec)) * 10;
             const by = Math.sin(b * 2.7 + Math.floor(nowSec)) * 7;
             if (bt < 0.5) {
-              const r = bt * 18;
-              ctx.fillStyle = `rgba(251, 146, 60, ${(1 - bt * 2) * 0.85})`;
+              const r = bt * (isEnvoy ? 14 : 18);
+              ctx.fillStyle = isEnvoy
+                ? `rgba(192, 132, 252, ${(1 - bt * 2) * 0.72})`
+                : `rgba(251, 146, 60, ${(1 - bt * 2) * 0.85})`;
               ctx.beginPath();
               ctx.arc(bx, by, r, 0, Math.PI * 2);
               ctx.fill();
@@ -768,8 +849,12 @@ export function WarEffectsCanvas({
         }
         ctx.restore();
 
-        // Compact Floating Siege HUD Pill above target province
-        const label = `${op.attackerCode} ⚔ ${op.defenderCode} • %${op.progress}`;
+        // Compact Floating HUD Pill above target province
+        const label = isEnvoy
+          ? `${loc === "tr" ? "ELÇİ" : "ENVOY"}: ${op.attackerCode} → ${op.defenderCode} • ${loc === "tr" ? `%${op.progress}` : `${op.progress}%`}`
+          : isRebel
+            ? `${loc === "tr" ? "İSYAN" : "REBELS"} ⚔ ${op.defenderCode} • ${loc === "tr" ? `%${op.progress}` : `${op.progress}%`}`
+            : `${op.attackerCode} ⚔ ${op.defenderCode} • ${loc === "tr" ? `%${op.progress}` : `${op.progress}%`}`;
         ctx.save();
         ctx.font = "700 10px Inter, sans-serif";
         const tw = ctx.measureText(label).width;
@@ -777,7 +862,11 @@ export function WarEffectsCanvas({
         const bx = pTo.x - boxW / 2;
         const by = pTo.y - ringRadius - 28;
         ctx.fillStyle = "rgba(9, 13, 22, 0.92)";
-        ctx.strokeStyle = "rgba(239, 68, 68, 0.85)";
+        ctx.strokeStyle = isEnvoy
+          ? "rgba(192, 132, 252, 0.88)"
+          : isRebel
+            ? "rgba(249, 115, 22, 0.9)"
+            : "rgba(239, 68, 68, 0.85)";
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.roundRect(bx, by, boxW, 22, 7);
@@ -790,10 +879,14 @@ export function WarEffectsCanvas({
         ctx.textBaseline = "middle";
         ctx.fillText(label, pTo.x, by + 8.5);
 
-        // Mini capture progress bar inside badge
+        // Mini progress bar inside badge
         ctx.fillStyle = "rgba(255,255,255,0.14)";
         ctx.fillRect(bx + 6, by + 16, boxW - 12, 3);
-        ctx.fillStyle = op.progress >= 75 ? "#22c55e" : "#f59e0b";
+        ctx.fillStyle = isEnvoy
+          ? "#c084fc"
+          : op.progress >= 75
+            ? "#22c55e"
+            : "#f59e0b";
         ctx.fillRect(bx + 6, by + 16, ((boxW - 12) * op.progress) / 100, 3);
         ctx.restore();
       }

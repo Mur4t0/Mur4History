@@ -691,8 +691,13 @@ export function WorldMap({
       }
     }
     for (const op of activeOps) {
-      atWarCountrySet.add(op.attackerCode);
-      atWarCountrySet.add(op.defenderCode);
+      if (
+        op.operationType !== "ENVOY_AGITATION" &&
+        op.operationType !== "REBEL_UPRISING"
+      ) {
+        atWarCountrySet.add(op.attackerCode);
+        atWarCountrySet.add(op.defenderCode);
+      }
     }
     const maxRiskByCountry = new Map<string, number>();
     for (const hs of warHotspots) {

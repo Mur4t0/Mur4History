@@ -475,14 +475,14 @@ export function getMcpRegistryMetadata(locale: AppLocale): McpRegistryMeta {
             "Replies to player questions in the Strategy Advisor / War Room and optionally attaches one-click suggested_orders cards (do NOT call advance_turn).",
         },
         provoke_country: {
-          title: "Provoke Nation / Incite Third-Party War",
+          title: "Provoke Nation / Send Covert Envoys / Incite War",
           description:
-            "Escalates bilateral tension & war probability via border skirmishes, insults, rebel sponsorship, or instigates open war between two other nations.",
+            "Escalates bilateral tension via border skirmishes, insults, false-flag instigation, or SPONSOR_REBELS (sends covert envoys to agitate populace, lower stability, and spark internal uprisings WITHOUT annexing land).",
         },
         trigger_war_operation: {
-          title: "Launch or Advance Animated Siege / Military Operation",
+          title: "Launch or Advance Animated Siege / Covert Operation",
           description:
-            "Deploys animated marching infantry, armored tank blitz, air strikes, or naval invasions toward a target province on the live world map.",
+            "Deploys animated marching infantry, armored tank blitz, air strikes, naval invasions, covert envoy agitation (ENVOY_AGITATION), or internal popular uprisings (REBEL_UPRISING) on the live world map.",
         },
         launch_nuclear_strike: {
           title: "Launch Strategic Nuclear Strike",
@@ -628,14 +628,14 @@ export function getMcpRegistryMetadata(locale: AppLocale): McpRegistryMeta {
           "Oyuncunun Strateji Danışmanı / Fikir Odası'nda sorduğu sorulara yanıt ve tek tıkla emir öneri kartları (suggested_orders) sunar (turu ilerletmez).",
       },
       provoke_country: {
-        title: "Ülke Kışkırt / Üçüncü Ülkeleri Birbirine Düşür",
+        title: "Ülke Kışkırt / Gizli Elçi & Halk İsyanı / Üçüncü Ülke Savaşı",
         description:
-          "Sınır tacizi, diplomatik hakaret, isyancı desteği veya sahte bayrak operasyonuyla savaş olasılığını yükseltir ve ülkeler arasında gerçek savaş çıkarır.",
+          "Sınır tacizi, diplomatik hakaret, sahte bayrak operasyonu veya SPONSOR_REBELS (gizli elçi gönderip halkı kışkırtarak istikrarı düşürür ve toprak ilhakı yapmadan iç isyan çıkarır) uygular.",
       },
       trigger_war_operation: {
-        title: "Canlı Animasyonlu Kuşatma / Taarruz Başlat",
+        title: "Canlı Animasyonlu Kuşatma / Elçi Sızması Başlat",
         description:
-          "Haritada bir hedef eyalete doğru yürüyen askerler, zırhlı tank birlikleri, hava akını veya deniz çıkarması harekatı başlatır/ilerletir.",
+          "Haritada hedef eyalete yürüyen askerler, zırhlı tank birlikleri, hava akını, deniz çıkarması, gizli elçi kışkırtması (ENVOY_AGITATION) veya halk ayaklanması (REBEL_UPRISING) başlatır/ilerletir.",
       },
       launch_nuclear_strike: {
         title: "Stratejik Nükleer Saldırı Düzenle",

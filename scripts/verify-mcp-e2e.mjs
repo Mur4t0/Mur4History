@@ -446,6 +446,180 @@ async function run() {
     assert.equal(advWarJson.ok, true);
     assert.ok(advWarJson.advancedCount >= 1);
 
+    // Verify ITA automatically launched a live Counter-Offensive (ITA -> TUR) when attacked!
+    const counterCheckRes = await fetch(`${BASE}/api/sessions/${sessionId}`);
+    const counterCheckJson = await counterCheckRes.json();
+    const itaCounterOp = (counterCheckJson.session.warOperations ?? []).find(
+      (w) => w.attackerCode === "ITA" && w.defenderCode === "TUR"
+    );
+    assert.ok(
+      itaCounterOp,
+      "Expected defending nation ITA to automatically launch a live Counter-Offensive against attacker TUR!"
+    );
+
+    // Verify SPONSOR_REBELS dispatches Covert Envoys (ENVOY_AGITATION) -> stability drops -> Internal Uprising (REBEL_UPRISING) WITHOUT annexing BGR!
+    let preBgrRes = await fetch(`${BASE}/api/sessions/${sessionId}`);
+    let preBgrJson = await preBgrRes.json();
+    let bgrState = preBgrJson.session.countries.find((c) => c.code === "BGR");
+    const bgrInitStab = bgrState.stability;
+
+    const envoyRes1 = await mcpClient.callTool({
+      name: "provoke_country",
+      arguments: {
+        actor_country_id: "TUR",
+        target_country_id: "BGR",
+        action_type: "SPONSOR_REBELS",
+        target_region_id: "BGR",
+      },
+    });
+    const envoyJson1 = JSON.parse(envoyRes1.content[0].text);
+    assert.equal(envoyJson1.ok, true);
+    if (bgrInitStab - 10 > 45) {
+      assert.equal(envoyJson1.operation.operationType, "ENVOY_AGITATION");
+      assert.equal(envoyJson1.operation.unitType, "ENVOY");
+    }
+
+    // Advance covert envoy mission until completed ("AGITATED"), proving BGR still owns BGR!
+    for (let step = 0; step < 6; step++) {
+      await mcpClient.callTool({
+        name: "trigger_war_operation",
+        arguments: { mode: "ADVANCE" },
+      });
+    }
+    preBgrRes = await fetch(`${BASE}/api/sessions/${sessionId}`);
+    preBgrJson = await preBgrRes.json();
+    let bgrRegion = preBgrJson.session.regions.find((r) => r.regionId === "BGR");
+    assert.equal(
+      bgrRegion.ownerCountryCode,
+      "BGR",
+      `Covert envoy agitation must NOT annex BGR! Owner became: ${bgrRegion.ownerCountryCode}`
+    );
+    bgrState = preBgrJson.session.countries.find((c) => c.code === "BGR");
+    assert.ok(
+      bgrState.stability < bgrInitStab - 15,
+      `Expected BGR stability drop after envoy wave (was ${bgrInitStab}, now ${bgrState.stability})`
+    );
+    assert.ok(
+      (preBgrJson.session.mapMarkers ?? []).some(
+        (m) => m.regionId === "BGR" && m.category === "CRISIS"
+      ),
+      "Expected pulsing CRISIS unrest marker on BGR after covert envoy wave"
+    );
+
+    // Push once more so stability hits <= 45 and sparks REBEL_UPRISING, STILL without annexing BGR!
+    const envoyRes2 = await mcpClient.callTool({
+      name: "provoke_country",
+      arguments: {
+        actor_country_id: "TUR",
+        target_country_id: "BGR",
+        action_type: "SPONSOR_REBELS",
+        target_region_id: "BGR",
+      },
+    });
+    const envoyJson2 = JSON.parse(envoyRes2.content[0].text);
+    assert.equal(envoyJson2.ok, true);
+    assert.equal(envoyJson2.operation.operationType, "REBEL_UPRISING");
+
+    for (let step = 0; step < 6; step++) {
+      await mcpClient.callTool({
+        name: "trigger_war_operation",
+        arguments: { mode: "ADVANCE" },
+      });
+    }
+    preBgrRes = await fetch(`${BASE}/api/sessions/${sessionId}`);
+    preBgrJson = await preBgrRes.json();
+    bgrRegion = preBgrJson.session.regions.find((r) => r.regionId === "BGR");
+    assert.equal(
+      bgrRegion.ownerCountryCode,
+      "BGR",
+      `Popular uprising must NOT transfer BGR to TUR! Owner became: ${bgrRegion.ownerCountryCode}`
+    );
+    assert.equal(
+      bgrRegion.strategicStatus,
+      "CONTESTED",
+      `Expected CONTESTED status on BGR during popular uprising, got: ${bgrRegion.strategicStatus}`
+    );
+    const finishedRebelOp = (preBgrJson.session.warOperations ?? []).find(
+      (w) => w.defenderCode === "BGR" && w.operationType === "REBEL_UPRISING"
+    );
+    assert.equal(finishedRebelOp?.status, "UPRISING");
+    const turVsItaOp = (preBgrJson.session.warOperations ?? []).find(
+      (w) => w.id === opJson.operation.id
+    );
+    assert.equal(
+      turVsItaOp?.status,
+      "REPELLED",
+      `Expected reckless head-on siege by TUR (62 mil) against stronger fortified ITA (74 mil) on HARD to be REPELLED, got: ${turVsItaOp?.status}`
+    );
+    console.log("Live Defender Counter-Attack, Garrison Siege Repulsion (REPELLED) & Covert Envoy Uprising verified!");
+
+    // Verify player cannot hijack foreign nation military via UI /war route (403)
+    const hijackRes = await fetch(`${BASE}/api/sessions/${sessionId}/war`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "launch_operation",
+        attackerCode: "FRA",
+        defenderCode: "GER",
+        operationType: "TANK_BLITZ",
+      }),
+    });
+    assert.equal(
+      hijackRes.status,
+      403,
+      `Expected 403 when attempting to command foreign country FRA as TUR, got: ${hijackRes.status}`
+    );
+
+    // Verify player cannot unilaterally force instant ceasefire on third-party wars (ITA vs ETH in 1936)
+    const illegalCeasefireRes = await fetch(`${BASE}/api/sessions/${sessionId}/war`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "ceasefire",
+        countryA: "ITA",
+        countryB: "ETH",
+      }),
+    });
+    assert.equal(
+      illegalCeasefireRes.status,
+      400,
+      `Expected 400 when attempting unilateral third-party ceasefire, got: ${illegalCeasefireRes.status}`
+    );
+
+    // Verify Multilateral Peace Council convening & resolution for ITA vs ETH
+    const convenePeaceRes = await fetch(`${BASE}/api/sessions/${sessionId}/war`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "convene_peace_council",
+        countryA: "ITA",
+        countryB: "ETH",
+      }),
+    });
+    assert.equal(convenePeaceRes.status, 201);
+    const convenePeaceJson = await convenePeaceRes.json();
+    assert.ok(convenePeaceJson.council?.id);
+    assert.ok(convenePeaceJson.council.participantCodes.includes("ITA"));
+    assert.ok(convenePeaceJson.council.participantCodes.includes("ETH"));
+    assert.ok(convenePeaceJson.council.participantCodes.includes("TUR"));
+
+    const resolvePeaceRes = await fetch(`${BASE}/api/sessions/${sessionId}/war`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "resolve_peace_council",
+        councilId: convenePeaceJson.council.id,
+        countryA: "ITA",
+        countryB: "ETH",
+        proposalType: "COERCIVE_COALITION",
+      }),
+    });
+    assert.equal(resolvePeaceRes.status, 200);
+    const resolvePeaceJson = await resolvePeaceRes.json();
+    assert.ok(typeof resolvePeaceJson.accepted === "boolean");
+    assert.ok(resolvePeaceJson.evaluation?.threshold >= 50);
+    console.log("Anti-Hijack Lock, Third-Party Ceasefire Block & Multilateral Peace Council verified!");
+
     // Verify nuclear strike is blocked when nation has 0 warheads
     const blockedNukeRes = await fetch(`${BASE}/api/sessions/${sessionId}/war`, {
       method: "POST",

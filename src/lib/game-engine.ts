@@ -2163,6 +2163,44 @@ export async function toolReplyDiplomaticCouncil(params: {
     },
   });
 
+  // If MCP AI resolves a Peace Council where participant nations are at WAR, conclude the war cleanly
+  if (council_status === "RESOLVED") {
+    const pList = Array.from(participantSet);
+    const warringRels = await prisma.diplomacyRelation.findMany({
+      where: {
+        sessionId,
+        status: "WAR",
+        countryA: { in: pList },
+        countryB: { in: pList },
+      },
+    });
+    for (const rel of warringRels) {
+      await prisma.diplomacyRelation.update({
+        where: { id: rel.id },
+        data: {
+          status: "NEUTRAL",
+          tension: 28,
+          treatyName: `${council.title} Barış Antlaşması`,
+          updatedTurn: session.turnNumber,
+        },
+      });
+      await prisma.warOperation.updateMany({
+        where: {
+          sessionId,
+          status: { in: ["MARCHING", "BESIEGING", "ACTIVE"] },
+          OR: [
+            { attackerCode: rel.countryA, defenderCode: rel.countryB },
+            { attackerCode: rel.countryB, defenderCode: rel.countryA },
+          ],
+        },
+        data: { status: "REPELLED" },
+      });
+    }
+    if (warringRels.length > 0) {
+      emitSessionEvent(sessionId, "war_operation_updated", { ceasefire: true });
+    }
+  }
+
   emitSessionEvent(sessionId, "council_updated", {
     councilId: council_id,
     messages: createdMsgs,

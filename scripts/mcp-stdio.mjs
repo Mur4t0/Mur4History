@@ -1150,9 +1150,10 @@ stdioToolHandles.set(
             "AIR_STRIKE",
             "NAVAL_INVASION",
             "REBEL_UPRISING",
+            "ENVOY_AGITATION",
           ])
           .optional(),
-        unit_type: z.enum(["INFANTRY", "ARMOR", "AIR", "NAVAL"]).optional(),
+        unit_type: z.enum(["INFANTRY", "ARMOR", "AIR", "NAVAL", "ENVOY"]).optional(),
         intensity: z.number().min(10).max(100).optional(),
         title: z.string().optional(),
         description: z.string().optional(),

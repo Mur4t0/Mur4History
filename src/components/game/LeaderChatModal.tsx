@@ -3,6 +3,11 @@
 import { useLocale } from "@/components/LanguageProvider";
 import { formatGameDateByLocale, getCountryDisplayName } from "@/lib/i18n";
 import { isTreatyEligibleForNuclearSharing } from "@/lib/nuclear-doctrine";
+import {
+  evaluatePeaceCouncilReadiness,
+  getCountryBlocsAndPacts,
+  getWarDifficultyProfile,
+} from "@/lib/geopolitics";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -59,6 +64,10 @@ interface LeaderChatModalProps {
   councils: DiplomacyCouncilRecord[];
   initialTargetCode: string | null;
   initialTab?: "direct" | "councils";
+  initialCouncilId?: string | null;
+  scenarioKey?: string | null;
+  currentDate?: string | null;
+  difficulty?: string | null;
   onMessageSent: () => void;
 }
 
@@ -156,6 +165,10 @@ export function LeaderChatModal({
   councils,
   initialTargetCode,
   initialTab = "direct",
+  initialCouncilId = null,
+  scenarioKey,
+  currentDate,
+  difficulty,
   onMessageSent,
 }: LeaderChatModalProps) {
   const { locale } = useLocale();
@@ -196,6 +209,8 @@ export function LeaderChatModal({
   const [councilSearch, setCouncilSearch] = useState("");
   const [newOpeningMsg, setNewOpeningMsg] = useState("");
   const [councilDraft, setCouncilDraft] = useState("");
+  const [peaceVoteBusy, setPeaceVoteBusy] = useState(false);
+  const [peaceVoteFeedback, setPeaceVoteFeedback] = useState<string | null>(null);
 
   const endRef = useRef<HTMLDivElement | null>(null);
   const councilEndRef = useRef<HTMLDivElement | null>(null);
@@ -203,6 +218,18 @@ export function LeaderChatModal({
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab, open]);
+
+  useEffect(() => {
+    if (open && initialCouncilId) {
+      setSelectedCouncilId(initialCouncilId);
+      setCreatingCouncil(false);
+      setActiveTab("councils");
+    }
+  }, [open, initialCouncilId]);
+
+  useEffect(() => {
+    setPeaceVoteFeedback(null);
+  }, [selectedCouncilId, open]);
 
   useEffect(() => {
     if (open && initialTargetCode && initialTargetCode !== playerCountryCode) {
@@ -634,7 +661,7 @@ export function LeaderChatModal({
                             {isTr ? relBadge.labelTr : relBadge.labelEn}
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                           <span>
                             {getCountryDisplayName(
                               activeCountry.code,
@@ -644,6 +671,22 @@ export function LeaderChatModal({
                           </span>
                           <span>•</span>
                           <span className="text-primary">{activeCountry.ideology}</span>
+                          {getCountryBlocsAndPacts({
+                            countryCode: activeCountry.code,
+                            scenarioKey,
+                            currentDate,
+                            diplomacies,
+                            locale,
+                          }).map((b) => (
+                            <span
+                              key={b.id}
+                              title={b.label}
+                              className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-bold ${b.colorClass}`}
+                            >
+                              <Shield className="h-2.5 w-2.5" />
+                              {b.shortLabel}
+                            </span>
+                          ))}
                         </div>
                       </div>
                     </div>
@@ -1310,6 +1353,13 @@ export function LeaderChatModal({
                     <div className="mt-2 max-h-24 overflow-y-auto pr-1 flex flex-wrap gap-1.5">
                       {activeCouncil.participantCodes.map((code) => {
                         const c = countryByCode.get(code);
+                        const cBlocs = getCountryBlocsAndPacts({
+                          countryCode: code,
+                          scenarioKey,
+                          currentDate,
+                          diplomacies,
+                          locale,
+                        });
                         return (
                           <span
                             key={code}
@@ -1317,10 +1367,179 @@ export function LeaderChatModal({
                           >
                             {c?.flagEmoji ?? "🏳️"}{" "}
                             {getCountryDisplayName(code, c?.name ?? code, locale)}
+                            {cBlocs[0] && (
+                              <span className="ml-0.5 rounded bg-primary/20 px-1 py-0.2 font-mono text-[9px] text-primary">
+                                {cBlocs[0].shortLabel}
+                              </span>
+                            )}
                           </span>
                         );
                       })}
                     </div>
+
+                    {/* Multilateral Peace Council Resolution Panel when warring nations are at this council table */}
+                    {(() => {
+                      const pSet = new Set(activeCouncil.participantCodes);
+                      const warRels = diplomacies.filter(
+                        (d) =>
+                          d.status === "WAR" &&
+                          pSet.has(d.countryA) &&
+                          pSet.has(d.countryB)
+                      );
+                      const warPair = warRels[0];
+                      if (!warPair || activeCouncil.status !== "OPEN") return null;
+                      const cA = countryByCode.get(warPair.countryA);
+                      const cB = countryByCode.get(warPair.countryB);
+                      if (!cA || !cB) return null;
+                      const playerC = playerCountryCode
+                        ? countryByCode.get(playerCountryCode)
+                        : null;
+                      const majorCount = activeCouncil.participantCodes.filter(
+                        (code) => countryByCode.get(code)?.isMajor
+                      ).length;
+                      const whiteEval = evaluatePeaceCouncilReadiness({
+                        countryA: cA,
+                        countryB: cB,
+                        mediatorMilitary: playerC?.military ?? 55,
+                        attendeeCount: activeCouncil.participantCodes.length,
+                        majorAttendeeCount: majorCount,
+                        difficulty,
+                        proposalType: "WHITE_PEACE",
+                        locale,
+                      });
+                      const prof = getWarDifficultyProfile(difficulty);
+                      const medCost = Math.round(220 * prof.costMultiplier);
+                      const coerceCost = Math.round(160 * prof.costMultiplier);
+
+                      const handlePeaceVote = async (
+                        proposalType:
+                          | "WHITE_PEACE"
+                          | "MEDIATED_PACKAGE"
+                          | "COERCIVE_COALITION"
+                      ) => {
+                        setPeaceVoteBusy(true);
+                        setPeaceVoteFeedback(null);
+                        setError(null);
+                        try {
+                          const res = await fetch(`/api/sessions/${sessionId}/war`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              mode: "resolve_peace_council",
+                              councilId: activeCouncil.id,
+                              countryA: cA.code,
+                              countryB: cB.code,
+                              proposalType,
+                              locale,
+                            }),
+                          });
+                          const data = await res.json();
+                          if (!res.ok) {
+                            setError(
+                              data.error ||
+                                (isTr
+                                  ? "Barış oylaması başarısız."
+                                  : "Peace vote failed.")
+                            );
+                          } else {
+                            setPeaceVoteFeedback(data.summary);
+                            onMessageSent();
+                          }
+                        } catch {
+                          setError(
+                            isTr
+                              ? "Konsey oylaması sırasında ağ hatası oluştu."
+                              : "Network error during council peace vote."
+                          );
+                        } finally {
+                          setPeaceVoteBusy(false);
+                        }
+                      };
+
+                      return (
+                        <div
+                          data-testid="council-peace-vote-panel"
+                          className="mt-3 rounded-xl border border-emerald-500/40 bg-emerald-950/20 p-3 text-xs space-y-2.5"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 font-semibold text-emerald-300">
+                              <Shield className="h-4 w-4 text-emerald-400" />
+                              <span>
+                                {isTr
+                                  ? `Çok Uluslu Barış Oylaması: ${cA.flagEmoji} ${getCountryDisplayName(cA.code, cA.name, locale)} ⚔ ${cB.flagEmoji} ${getCountryDisplayName(cB.code, cB.name, locale)}`
+                                  : `Multilateral Peace Vote: ${cA.flagEmoji} ${getCountryDisplayName(cA.code, cA.name, locale)} ⚔ ${cB.flagEmoji} ${getCountryDisplayName(cB.code, cB.name, locale)}`}
+                              </span>
+                            </div>
+                            <Badge
+                              variant={
+                                whiteEval.score >= whiteEval.threshold
+                                  ? "success"
+                                  : "warning"
+                              }
+                            >
+                              {isTr
+                                ? `Baz Uzlaşı: %${whiteEval.score} / Eşik: %${whiteEval.threshold}`
+                                : `Base Consensus: ${whiteEval.score}% / Threshold: ${whiteEval.threshold}%`}
+                            </Badge>
+                          </div>
+
+                          <p className="text-[11px] text-slate-300">
+                            {isTr
+                              ? `Seçili zorluk seviyesinde savaşı bitirmek için en az %${whiteEval.threshold} konsey uzlaşısı gerekir. Savaş yorgunluğu (${cA.code}: %${cA.warExhaustion}, ${cB.code}: %${cB.warExhaustion}) düşükse garantör bütçe fonu veya koalisyon baskısı ile oylamayı geçirebilirsiniz.`
+                              : `At current difficulty, ending the war requires >=${whiteEval.threshold}% council consensus. If war exhaustion (${cA.code}: ${cA.warExhaustion}%, ${cB.code}: ${cB.warExhaustion}%) is low, use a Reconstruction Fund or Coalition Ultimatum to pass the resolution.`}
+                          </p>
+
+                          {peaceVoteFeedback && (
+                            <div className="rounded-lg border border-amber-500/40 bg-black/40 px-2.5 py-1.5 text-[11px] text-amber-200">
+                              {peaceVoteFeedback}
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={peaceVoteBusy}
+                              data-testid="council-vote-white-peace-btn"
+                              onClick={() => void handlePeaceVote("WHITE_PEACE")}
+                              className="h-7 border-emerald-500/45 text-[11px] text-emerald-200 hover:bg-emerald-500/20"
+                            >
+                              {isTr
+                                ? `Statüko Ateşkesi Oyla (%${whiteEval.score})`
+                                : `Vote Status Quo Ceasefire (${whiteEval.score}%)`}
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={peaceVoteBusy}
+                              data-testid="council-vote-mediated-btn"
+                              onClick={() => void handlePeaceVote("MEDIATED_PACKAGE")}
+                              className="h-7 border-amber-500/45 text-[11px] text-amber-200 hover:bg-amber-500/20"
+                            >
+                              {isTr
+                                ? `Garantör Barış Fonu Sun (+%22 • ${medCost} Bütçe)`
+                                : `Guarantor Peace Fund (+22% • ${medCost} Treasury)`}
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={peaceVoteBusy}
+                              data-testid="council-vote-coercive-btn"
+                              onClick={() =>
+                                void handlePeaceVote("COERCIVE_COALITION")
+                              }
+                              className="h-7 border-rose-500/45 text-[11px] text-rose-200 hover:bg-rose-500/20"
+                            >
+                              {isTr
+                                ? `Konsey Yaptırım Ültimatomu (+%28 • ${coerceCost} Bütçe)`
+                                : `Council Sanction Ultimatum (+28% • ${coerceCost} Treasury)`}
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <ScrollArea className="flex-1 p-4">

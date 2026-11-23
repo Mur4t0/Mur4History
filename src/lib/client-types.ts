@@ -235,8 +235,9 @@ export interface WarOperationRecord {
     | "NAVAL_INVASION"
     | "NUCLEAR_STRIKE"
     | "REBEL_UPRISING"
+    | "ENVOY_AGITATION"
     | string;
-  unitType: "INFANTRY" | "ARMOR" | "AIR" | "NAVAL" | "MISSILE" | string;
+  unitType: "INFANTRY" | "ARMOR" | "AIR" | "NAVAL" | "MISSILE" | "ENVOY" | string;
   attackerCode: string;
   defenderCode: string;
   fromRegionId: string | null;
@@ -257,6 +258,8 @@ export interface WarOperationRecord {
     | "CAPTURED"
     | "REPELLED"
     | "DETONATED"
+    | "AGITATED"
+    | "UPRISING"
     | string;
   title: string;
   description: string;

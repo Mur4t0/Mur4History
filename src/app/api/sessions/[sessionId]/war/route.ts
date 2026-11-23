@@ -4,12 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { resolveAndSyncRequestLocale } from "@/lib/server-locale";
 import {
   advanceLiveWarOperations,
+  attemptDirectCeasefireAction,
   computeSessionWarRisks,
+  convenePeaceCouncilAction,
   launchWarOperation,
   provokeNationAction,
-  upsertDiplomacyTension,
+  resolvePeaceCouncilAction,
 } from "@/lib/war-engine";
-import { emitSessionEvent } from "@/lib/realtime";
+import { getActiveMcpLocale } from "@/lib/realtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,9 +46,10 @@ const LaunchOpSchema = z.object({
       "AIR_STRIKE",
       "NAVAL_INVASION",
       "REBEL_UPRISING",
+      "ENVOY_AGITATION",
     ])
     .default("TANK_BLITZ"),
-  unitType: z.enum(["INFANTRY", "ARMOR", "AIR", "NAVAL", "MISSILE"]).optional(),
+  unitType: z.enum(["INFANTRY", "ARMOR", "AIR", "NAVAL", "MISSILE", "ENVOY"]).optional(),
   intensity: z.number().int().min(10).max(100).default(75),
   title: z.string().max(160).optional(),
   description: z.string().max(600).optional(),
@@ -77,12 +80,33 @@ const CeasefireSchema = z.object({
   locale: z.enum(["tr", "en"]).optional(),
 });
 
+const ConvenePeaceCouncilSchema = z.object({
+  mode: z.literal("convene_peace_council"),
+  countryA: z.string().min(2).max(16),
+  countryB: z.string().min(2).max(16),
+  customTopic: z.string().max(600).optional(),
+  locale: z.enum(["tr", "en"]).optional(),
+});
+
+const ResolvePeaceCouncilSchema = z.object({
+  mode: z.literal("resolve_peace_council"),
+  councilId: z.string().optional(),
+  countryA: z.string().min(2).max(16),
+  countryB: z.string().min(2).max(16),
+  proposalType: z
+    .enum(["WHITE_PEACE", "MEDIATED_PACKAGE", "COERCIVE_COALITION"])
+    .default("WHITE_PEACE"),
+  locale: z.enum(["tr", "en"]).optional(),
+});
+
 const WarPostSchema = z.discriminatedUnion("mode", [
   ProvokeSchema,
   LaunchOpSchema,
   NuclearStrikeSchema,
   AdvanceBattlesSchema,
   CeasefireSchema,
+  ConvenePeaceCouncilSchema,
+  ResolvePeaceCouncilSchema,
 ]);
 
 export async function GET(
@@ -148,8 +172,19 @@ export async function POST(
     }
 
     if (parsed.data.mode === "launch_operation") {
-      const attackerCode =
-        parsed.data.attackerCode || session.playerCountryCode || "TUR";
+      const isTr = getActiveMcpLocale(sessionId) === "tr";
+      const playerCode = session.playerCountryCode || "TUR";
+      const attackerCode = parsed.data.attackerCode || playerCode;
+      if (session.playerCountryCode && attackerCode !== session.playerCountryCode) {
+        return Response.json(
+          {
+            error: isTr
+              ? `Yalnızca kendi yönettiğiniz ülkenin (${session.playerCountryCode}) ordularına doğrudan harekât emri verebilirsiniz! Diğer ülkeleri savaşa sokmak için 'Milletleri Birbirine Karıştır' (Gizli Kışkırtma) sekmesini kullanın.`
+              : `You can only directly command your own nation's (${session.playerCountryCode}) military! Use Covert Meddling to instigate third-party wars.`,
+          },
+          { status: 403 }
+        );
+      }
       const op = await launchWarOperation({
         sessionId,
         attackerCode,
@@ -166,8 +201,19 @@ export async function POST(
     }
 
     if (parsed.data.mode === "nuclear_strike") {
-      const attackerCode =
-        parsed.data.attackerCode || session.playerCountryCode || "TUR";
+      const isTr = getActiveMcpLocale(sessionId) === "tr";
+      const playerCode = session.playerCountryCode || "TUR";
+      const attackerCode = parsed.data.attackerCode || playerCode;
+      if (session.playerCountryCode && attackerCode !== session.playerCountryCode) {
+        return Response.json(
+          {
+            error: isTr
+              ? `Yalnızca kendi ülkenizin (${session.playerCountryCode}) nükleer cephaneliğini ateşleyebilirsiniz!`
+              : `You can only fire your own nation's (${session.playerCountryCode}) nuclear arsenal!`,
+          },
+          { status: 403 }
+        );
+      }
       const op = await launchWarOperation({
         sessionId,
         attackerCode,
@@ -191,30 +237,35 @@ export async function POST(
       return Response.json(res);
     }
 
+    if (parsed.data.mode === "convene_peace_council") {
+      const res = await convenePeaceCouncilAction({
+        sessionId,
+        countryA: parsed.data.countryA,
+        countryB: parsed.data.countryB,
+        customTopic: parsed.data.customTopic,
+      });
+      return Response.json(res, { status: 201 });
+    }
+
+    if (parsed.data.mode === "resolve_peace_council") {
+      const res = await resolvePeaceCouncilAction({
+        sessionId,
+        councilId: parsed.data.councilId,
+        countryA: parsed.data.countryA,
+        countryB: parsed.data.countryB,
+        proposalType: parsed.data.proposalType,
+      });
+      return Response.json(res);
+    }
+
     // mode === "ceasefire"
     const codeA = parsed.data.countryA || session.playerCountryCode || "TUR";
-    const { relation } = await upsertDiplomacyTension({
+    const res = await attemptDirectCeasefireAction({
       sessionId,
       countryA: codeA,
       countryB: parsed.data.countryB,
-      status: "NEUTRAL",
-      exactTension: 28,
-      treatyName: "Ateşkes / Ceasefire",
-      turnNumber: session.turnNumber,
     });
-    await prisma.warOperation.updateMany({
-      where: {
-        sessionId,
-        status: { in: ["MARCHING", "BESIEGING", "ACTIVE"] },
-        OR: [
-          { attackerCode: codeA, defenderCode: parsed.data.countryB },
-          { attackerCode: parsed.data.countryB, defenderCode: codeA },
-        ],
-      },
-      data: { status: "REPELLED" },
-    });
-    emitSessionEvent(sessionId, "war_operation_updated", { ceasefire: true });
-    return Response.json({ relation });
+    return Response.json(res);
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : "Savaş işlemi başarısız" },
