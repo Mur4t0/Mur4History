@@ -16,8 +16,10 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/components/LanguageProvider";
 import { getCountryDisplayName } from "@/lib/i18n";
+import { findNuclearPartners } from "@/lib/nuclear-doctrine";
 import type {
   CountryRecord,
+  DiplomacyRecord,
   RegionRecord,
   WarOperationRecord,
   WarRiskSummary,
@@ -50,6 +52,7 @@ interface WarRoomModalProps {
   playerCountryCode: string | null;
   countries: CountryRecord[];
   regions: RegionRecord[];
+  diplomacies?: DiplomacyRecord[];
   warOperations: WarOperationRecord[];
   warHotspots: WarRiskSummary[];
   playerRisks: Record<string, WarRiskSummary>;
@@ -59,6 +62,7 @@ interface WarRoomModalProps {
   initialTargetCode?: string | null;
   onWarUpdated: () => void;
   onReplayNuke?: (op: WarOperationRecord) => void;
+  onOpenLeaderNuclear?: (patronCode?: string) => void;
 }
 
 const OP_TYPE_LABEL: Record<string, { tr: string; en: string }> = {
@@ -89,6 +93,7 @@ export function WarRoomModal({
   playerCountryCode,
   countries,
   regions,
+  diplomacies = [],
   warOperations,
   warHotspots,
   playerRisks,
@@ -98,6 +103,7 @@ export function WarRoomModal({
   initialTargetCode = null,
   onWarUpdated,
   onReplayNuke,
+  onOpenLeaderNuclear,
 }: WarRoomModalProps) {
   const { locale } = useLocale();
   const isTr = locale === "tr";
@@ -111,6 +117,13 @@ export function WarRoomModal({
   const [attackerCode, setAttackerCode] = useState<string>(
     playerCountryCode || countries[0]?.code || "TUR"
   );
+  const attackerCountry = countryByCode.get(attackerCode);
+  const attackerWarheads = attackerCountry?.nuclearWarheads ?? 0;
+  const nuclearPartners = useMemo(
+    () => findNuclearPartners(attackerCode, countries, diplomacies),
+    [attackerCode, countries, diplomacies]
+  );
+  const eligibleNuclearPatrons = nuclearPartners.filter((p) => p.eligible);
   const [defenderCode, setDefenderCode] = useState<string>(
     initialTargetCode ||
       countries.find((c) => c.code !== (playerCountryCode || "TUR"))?.code ||
@@ -500,12 +513,93 @@ export function WarRoomModal({
                             {isTr ? "Vekil İsyancı Kuşatması" : "Rebel Uprising Siege"}
                           </SelectItem>
                           <SelectItem value="NUCLEAR_STRIKE">
-                            {isTr ? "Nükleer Başlık Fırlat!" : "Strategic Nuclear Strike!"}
+                            {attackerWarheads > 0
+                              ? isTr
+                                ? `Nükleer Başlık Fırlat! (${attackerWarheads} Başlık)`
+                                : `Strategic Nuclear Strike! (${attackerWarheads} Left)`
+                              : isTr
+                                ? "Nükleer Başlık Fırlat (0 Başlık — Kilitli)"
+                                : "Nuclear Strike (0 Warheads — Locked)"}
                           </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
+
+                  {opType === "NUCLEAR_STRIKE" && (
+                    <div
+                      data-testid="warroom-nuclear-status-box"
+                      className={`rounded-lg border px-3 py-2.5 text-xs ${
+                        attackerWarheads > 0
+                          ? "border-amber-500/45 bg-amber-950/20 text-amber-200"
+                          : "border-red-500/40 bg-red-950/25 text-red-200"
+                      }`}
+                    >
+                      {attackerWarheads > 0 ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-1.5 font-medium">
+                            <Radiation className="h-4 w-4 text-amber-400" />
+                            {isTr
+                              ? `${attackerCode} envanterinde ${attackerWarheads} nükleer başlık hazır (Her saldırı 1 başlık harcar).`
+                              : `${attackerCode} has ${attackerWarheads} nuclear warhead(s) ready (Each launch consumes 1).`}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex items-start gap-2 font-medium text-red-200">
+                            <Radiation className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+                            <span>
+                              {isTr
+                                ? `${attackerCode} envanterinde nükleer başlık yok (0 başlık). Nükleer füze fırlatabilmek için bir ittifak/savunma antlaşması altındaki müttefik liderle konuşarak nükleer başlık desteği isteyebilir veya yerli nükleer program başlatabilirsiniz.`
+                                : `${attackerCode} has 0 nuclear warheads! Negotiate nuclear sharing with a treaty ally leader or start a domestic nuclear program.`}
+                            </span>
+                          </div>
+                          {onOpenLeaderNuclear &&
+                            attackerCode === playerCountryCode &&
+                            nuclearPartners.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                {(eligibleNuclearPatrons.length > 0
+                                  ? eligibleNuclearPatrons
+                                  : nuclearPartners.slice(0, 4)
+                                ).map((patron) => (
+                                  <Button
+                                    key={patron.code}
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    data-testid={`warroom-ask-patron-${patron.code}`}
+                                    onClick={() => onOpenLeaderNuclear(patron.code)}
+                                    className={`h-7 text-[11px] ${
+                                      patron.eligible
+                                        ? "border-emerald-500/50 bg-emerald-950/35 text-emerald-200 hover:bg-emerald-500/20"
+                                        : "border-amber-500/40 bg-amber-950/25 text-amber-200 hover:bg-amber-500/20"
+                                    }`}
+                                  >
+                                    <span>{patron.flagEmoji}</span>
+                                    <span>
+                                      {getCountryDisplayName(
+                                        patron.code,
+                                        patron.name,
+                                        locale
+                                      )}
+                                    </span>
+                                    <span className="font-mono text-[10px] opacity-85">
+                                      ({patron.warheads} ☢️
+                                      {patron.eligible
+                                        ? ` • ${patron.treatyName ?? patron.status}`
+                                        : isTr
+                                          ? " • İttifak Yok"
+                                          : " • No Treaty"}
+                                      )
+                                    </span>
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
                     {confirmNuke && opType === "NUCLEAR_STRIKE" ? (
@@ -524,7 +618,7 @@ export function WarRoomModal({
                         </Button>
                         <Button
                           size="sm"
-                          disabled={busy}
+                          disabled={busy || attackerWarheads <= 0}
                           onClick={handleLaunchOperation}
                           className="bg-red-600 text-white hover:bg-red-500"
                         >
@@ -535,11 +629,14 @@ export function WarRoomModal({
                     ) : (
                       <Button
                         size="sm"
-                        disabled={busy}
+                        disabled={
+                          busy ||
+                          (opType === "NUCLEAR_STRIKE" && attackerWarheads <= 0)
+                        }
                         onClick={handleLaunchOperation}
                         className={
                           opType === "NUCLEAR_STRIKE"
-                            ? "bg-red-600 text-white hover:bg-red-500"
+                            ? "bg-red-600 text-white hover:bg-red-500 disabled:opacity-45"
                             : ""
                         }
                       >

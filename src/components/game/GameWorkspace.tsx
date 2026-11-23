@@ -584,6 +584,30 @@ export function GameWorkspace({
     const syncHandler = () => {
       void refreshSession();
     };
+    source.addEventListener("nuclear_transferred", (e) => {
+      const trMode = localeRef.current === "tr";
+      try {
+        const parsed = JSON.parse((e as MessageEvent).data) as {
+          payload?: {
+            fromCode?: string;
+            toCode?: string;
+            count?: number;
+            treatyName?: string;
+          };
+        };
+        const p = parsed.payload;
+        if (p?.fromCode && p?.toCode) {
+          showToast(
+            trMode
+              ? `NÜKLEER PAYLAŞIM: ${p.fromCode} → ${p.toCode} (+${p.count ?? 1} Başlık • ${p.treatyName ?? "Antlaşma"})`
+              : `NUCLEAR SHARING: ${p.fromCode} → ${p.toCode} (+${p.count ?? 1} Warheads • ${p.treatyName ?? "Treaty"})`
+          );
+        }
+      } catch {
+        // Ignore
+      }
+      void refreshSession();
+    });
     source.addEventListener("order_queued", syncHandler);
     source.addEventListener("country_selected", syncHandler);
     source.addEventListener("state_sync", syncHandler);
@@ -799,10 +823,12 @@ export function GameWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      const data = await res.json().catch(() => null);
       if (res.ok) {
-        const data = await res.json();
-        if (data.summary) showToast(data.summary);
+        if (data?.summary) showToast(data.summary);
         void refreshSession();
+      } else if (data?.error) {
+        showToast(data.error);
       }
     },
     [session.id, session.playerCountryCode, locale, refreshSession, showToast]
@@ -900,6 +926,9 @@ export function GameWorkspace({
                 })
               }
               onQuickWarAction={handleQuickWarAction}
+              onRequestNuclearSharing={(patronCode) =>
+                openLeaderChatWith(patronCode, "direct")
+              }
               onOpenWarMeddle={(targetCode) => {
                 setWarRoomTarget(targetCode);
                 setWarRoomTab("meddle");
@@ -1251,6 +1280,7 @@ export function GameWorkspace({
         playerCountryCode={session.playerCountryCode}
         countries={session.countries}
         regions={session.regions}
+        diplomacies={session.diplomacies}
         warOperations={session.warOperations ?? []}
         warHotspots={warHotspots}
         playerRisks={playerRisks}
@@ -1262,6 +1292,10 @@ export function GameWorkspace({
           void refreshSession();
         }}
         onReplayNuke={(op) => triggerNukeVisual(op)}
+        onOpenLeaderNuclear={(patronCode) => {
+          setWarRoomOpen(false);
+          openLeaderChatWith(patronCode, "direct");
+        }}
       />
 
       {!(globalMcpStatus.connected || (session.mcpStatus?.connected ?? false)) && (

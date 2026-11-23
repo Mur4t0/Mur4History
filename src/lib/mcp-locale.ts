@@ -262,7 +262,9 @@ MANDATORY GAME MASTER RULES:
 4. ANIMATED MAP FACILITIES & LANDMARKS (\`manage_map_markers\`):
    - Whenever the player or AI nations construct facilities in cities/regions (e.g., *"Build a defense plant in Ankara"*, *"Construct shipyards in Istanbul"*, *"Deploy border air defense"*, *"Host Berlin peace summit"*), encounter frontlines/crises, or upgrade/destroy facilities, ALWAYS call \`manage_map_markers\` with \`city_name\` or \`region_id\`, \`category\`, \`status\`, and \`level\` (1-5).
 
-5. REALISM & SANITY CHECK:
+5. REALISM, NUCLEAR ARSENALS & TREATY SHARING:
+   - Countries can ONLY launch \`launch_nuclear_strike\` if their \`nuclear_warheads\` count is > 0! Pre-1945 eras start at 0.
+   - If the player talks to an allied nuclear power (under an \`ALLIANCE\` / mutual defense / nuclear umbrella treaty) via \`pending-leader-chats\` requesting nuclear weapons or deterrence support, evaluate strictly by Difficulty Mode & bilateral trust: you can transfer 1-3 warheads using \`transfer_nuclear_warheads\` or via \`reply_leader_chat\`'s \`transfer_nuclear_warheads\` parameter! If no qualifying alliance/treaty exists yet, have the foreign leader explain in-character that an Alliance / Defense Umbrella treaty must be signed first.
    - If the player orders something anachronistic or physically impossible (e.g., space lasers in 1936 or nuclear submarines in 1444), REJECT the project, apply treasury/stability penalties, and announce the setback via \`publish_world_event\`.
 
 6. CHAIN REACTIONS, TOOL CALLS & NEWSPAPER GROUPING:
@@ -318,7 +320,9 @@ ZORUNLU OYUN YÖNETİM KURALLARI:
    - \`city_name\` (örn. "Ankara", "İstanbul", "Paris") veya \`region_id\`, \`category\` (\`INDUSTRY\`, \`MILITARY\`, \`INFRASTRUCTURE\`, \`NAVAL\`, \`RESEARCH\`, \`DIPLOMACY\`, \`INTERNAL\`, \`CRISIS\`), \`status\` (\`ACTIVE\`, \`UNDER_CONSTRUCTION\`, \`DAMAGED\`, \`ALERT\`) ve \`level\` (1-5) belirterek harita üzerinde tam o noktada animasyonlu parlayan işaretçi görünmesini sağla!
    - Sonraki turlarda o tesisi geliştirirken (\`action: "UPDATE"\`) veya savaşta yok edildiyse (\`action: "REMOVE"\`) yine \`manage_map_markers\` ile yönet.
 
-5. GERÇEKÇİLİK VE MANTIK:
+5. GERÇEKÇİLİK, NÜKLEER ENVANTER VE ANTLAŞMA PAYLAŞIMI:
+   - Bir ülke yalnızca envanterinde \`nuclear_warheads > 0\` ise \`launch_nuclear_strike\` kullanabilir! 1945 öncesi dönemlerde herkes 0 başlıkla başlar.
+   - Oyuncu \`ALLIANCE\` / savunma paktı / nükleer şemsiye antlaşması imzaladığı nükleer güç sahibi bir ülkenin lideriyle (\`pending-leader-chats\`) görüşüp nükleer başlık/destek talep ederse: Zorluk Modu ve güven skoruna göre değerlendir; onaylarsan \`transfer_nuclear_warheads\` aracıyla veya \`reply_leader_chat\` içindeki \`transfer_nuclear_warheads\` parametresiyle 1-3 başlık devredebilirsin! Henüz ittifak/savunma antlaşması yoksa lider ağzından önce ittifak imzalanması gerektiğini belirt.
    - Oyuncu döneme tamamen aykırı veya fiziksel olarak imkansız bir emir verirse (örneğin 1936'da uzay lazeri veya 1444'te nükleer denizaltı üretmek), bu projeyi REDDET; hazine/istikrar kaybı uygula ve başarısızlığı \`publish_world_event\` ile dönem gazetesi dilinde duyur.
 
 6. ZİNCİRLEME ETKİ VE ARAÇ KULLANIM ZORUNLULUĞU:
@@ -481,7 +485,12 @@ export function getMcpRegistryMetadata(locale: AppLocale): McpRegistryMeta {
         launch_nuclear_strike: {
           title: "Launch Strategic Nuclear Strike",
           description:
-            "Fires a ballistic nuclear warhead onto a target province/city with ICBM trajectory, mushroom cloud animation, fallout crater marker, and war escalation.",
+            "Fires a ballistic nuclear warhead onto a target province/city (REQUIRES nuclear_warheads > 0 and consumes 1 warhead) with ICBM trajectory, mushroom cloud, and fallout marker.",
+        },
+        transfer_nuclear_warheads: {
+          title: "Transfer / Share Nuclear Warheads Under Treaty",
+          description:
+            "Transfers 1-20 nuclear warheads from a nuclear patron country to an allied/treaty partner nation (e.g., NATO / defense umbrella), placing a deployment marker and headline.",
         },
       },
       prompt: {
@@ -629,7 +638,12 @@ export function getMcpRegistryMetadata(locale: AppLocale): McpRegistryMeta {
       launch_nuclear_strike: {
         title: "Stratejik Nükleer Saldırı Düzenle",
         description:
-          "Seçili hedef eyalete/şehre balistik füze rotası, mantar bulutu animasyonu, krater işareti ve ağır hasar ile nükleer başlık fırlatır.",
+          "Envanterde en az 1 nükleer başlık varsa seçili hedef eyalete balistik füze rotası, mantar bulutu ve krater işareti ile saldırı düzenler (1 başlık tüketir).",
+      },
+      transfer_nuclear_warheads: {
+        title: "Antlaşma Kapsamında Nükleer Başlık Devret / Paylaş",
+        description:
+          "Nükleer güç sahibi bir ülkeden müttefik/antlaşmalı ülkeye (ör. NATO / savunma paktı altında) 1-20 nükleer başlık transfer eder, haritaya konuşlandırma işareti ve gazete haberi ekler.",
       },
     },
     prompt: {

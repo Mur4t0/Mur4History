@@ -34,6 +34,7 @@ model GameSession {
   difficulty           String              @default("NORMAL")
   timeJumpInterval     String              @default("SCENARIO_DEFAULT")
   awaitingAiSimulation Boolean             @default(false)
+  nuclearSeeded        Boolean             @default(false)
   lastMcpClientName    String?
   lastMcpActivityAt    DateTime?
   createdAt            DateTime            @default(now())
@@ -68,6 +69,7 @@ model Country {
   treasury        Int         @default(1000)
   infamy          Int         @default(0)
   warExhaustion   Int         @default(0)
+  nuclearWarheads Int         @default(0)
   capitalRegionId String?
   isMajor         Boolean     @default(false)
   description     String?

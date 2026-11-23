@@ -147,10 +147,10 @@ async function run() {
     });
     assert.equal(noteRes.status, 200);
 
-    // Call all 17 MCP Tools (including War Theater: provoke_country, trigger_war_operation, launch_nuclear_strike!)
+    // Call all 18 MCP Tools (including War Theater & Nuclear Sharing tools!)
     const toolsList = await mcpClient.listTools();
     console.log("MCP Tools:", toolsList.tools.map((t) => t.name));
-    assert.equal(toolsList.tools.length, 17);
+    assert.equal(toolsList.tools.length, 18);
 
     // Since orderRes (complete_turn) and chatPost are already pending, calling wait_for_player_action resolves immediately:
     const immediateWait = await mcpClient.callTool({
@@ -446,6 +446,70 @@ async function run() {
     assert.equal(advWarJson.ok, true);
     assert.ok(advWarJson.advancedCount >= 1);
 
+    // Verify nuclear strike is blocked when nation has 0 warheads
+    const blockedNukeRes = await fetch(`${BASE}/api/sessions/${sessionId}/war`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "nuclear_strike",
+        attackerCode: "TUR",
+        defenderCode: "ITA",
+      }),
+    });
+    assert.equal(blockedNukeRes.status, 400);
+    const blockedNukeJson = await blockedNukeRes.json();
+    assert.ok(
+      blockedNukeJson.error && blockedNukeJson.error.includes("0"),
+      `Expected 0-warhead rejection error, got: ${blockedNukeJson.error}`
+    );
+
+    // Give FRA a test nuclear arsenal, verify transfer without ALLIANCE is rejected,
+    // then upgrade FRA<->TUR to ALLIANCE + share warheads via reply_leader_chat!
+    await mcpClient.callTool({
+      name: "update_country_stats",
+      arguments: {
+        country_id: "FRA",
+        economy_delta: 0,
+        military_delta: 0,
+        stability_delta: 0,
+        nuclear_warheads_delta: 3,
+      },
+    });
+
+    const noTreatyTransferRes = await fetch(
+      `${BASE}/api/sessions/${sessionId}/nuclear`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "transfer",
+          fromCode: "FRA",
+          toCode: "TUR",
+          count: 1,
+          requireTreaty: true,
+        }),
+      }
+    );
+    assert.equal(noTreatyTransferRes.status, 400);
+
+    // Negotiate with FRA leader to form ALLIANCE & grant 2 warheads under treaty
+    const treatyReplyRes = await mcpClient.callTool({
+      name: "reply_leader_chat",
+      arguments: {
+        target_country_id: "FRA",
+        reply_message:
+          "Ankara-Paris Nükleer Savunma Antlaşması imzalandı; 2 taktik başlık sevk edildi.",
+        relation_status: "ALLIANCE",
+        treaty_name: "Ankara-Paris Nükleer Savunma Antlaşması",
+        transfer_nuclear_warheads: 2,
+      },
+    });
+    const treatyReplyJson = JSON.parse(treatyReplyRes.content[0].text);
+    assert.equal(treatyReplyJson.ok, true);
+    assert.equal(treatyReplyJson.nuclearTransfer.recipientWarheads, 2);
+    assert.equal(treatyReplyJson.nuclearTransfer.donorWarheads, 1);
+
+    // Now launch_nuclear_strike succeeds and consumes 1 warhead (2 -> 1)!
     const nukeRes = await mcpClient.callTool({
       name: "launch_nuclear_strike",
       arguments: {
@@ -457,7 +521,11 @@ async function run() {
     assert.equal(nukeJson.ok, true);
     assert.equal(nukeJson.operation.operationType, "NUCLEAR_STRIKE");
     assert.equal(nukeJson.operation.status, "DETONATED");
-    console.log("Live Warfare, Provocation, Tank Siege & Nuclear Strike verified!");
+
+    const postNukeState = await (await fetch(`${BASE}/api/sessions/${sessionId}`)).json();
+    const postNukeTur = postNukeState.session.countries.find((c) => c.code === "TUR");
+    assert.equal(postNukeTur.nuclearWarheads, 1);
+    console.log("Nuclear Stockpile Gating, Treaty Sharing & Detonation verified!");
 
     await mcpClient.close();
 
@@ -481,6 +549,7 @@ async function run() {
       "war_operation_started",
       "war_operation_updated",
       "nuclear_strike",
+      "nuclear_transferred",
       "diplomatic_provocation",
       "advisor_chat_updated",
       "advisor_chat_reply",
@@ -503,7 +572,7 @@ async function run() {
     );
     await legacyClient.connect(legacyTransport);
     const legacyTools = await legacyClient.listTools();
-    assert.equal(legacyTools.tools.length, 17);
+    assert.equal(legacyTools.tools.length, 18);
     await legacyClient.close();
     console.log("Legacy SSE transport verified successfully!");
 

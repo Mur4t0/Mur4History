@@ -28,6 +28,7 @@ export interface CountryRecord {
   treasury: number;
   infamy: number;
   warExhaustion: number;
+  nuclearWarheads?: number;
   capitalRegionId: string | null;
   isMajor: boolean;
   description: string | null;

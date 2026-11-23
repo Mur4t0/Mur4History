@@ -145,6 +145,7 @@ export async function exportSessionArchive(
       difficulty: session.difficulty,
       timeJumpInterval: session.timeJumpInterval,
       awaitingAiSimulation: session.awaitingAiSimulation,
+      nuclearSeeded: session.nuclearSeeded,
     },
     countries: countries.map((c) => ({
       code: c.code,
@@ -159,6 +160,7 @@ export async function exportSessionArchive(
       treasury: c.treasury,
       infamy: c.infamy,
       warExhaustion: c.warExhaustion,
+      nuclearWarheads: c.nuclearWarheads,
       capitalRegionId: c.capitalRegionId,
       isMajor: c.isMajor,
       description: c.description,
@@ -357,6 +359,7 @@ export async function importSessionArchive(
         difficulty: validDifficulty,
         timeJumpInterval: archive.session.timeJumpInterval || "SCENARIO_DEFAULT",
         awaitingAiSimulation: archive.session.awaitingAiSimulation,
+        nuclearSeeded: archive.session.nuclearSeeded ?? true,
       },
       select: { id: true },
     });
@@ -379,6 +382,7 @@ export async function importSessionArchive(
           treasury: c.treasury,
           infamy: c.infamy ?? 0,
           warExhaustion: c.warExhaustion ?? 0,
+          nuclearWarheads: c.nuclearWarheads ?? 0,
           capitalRegionId: c.capitalRegionId ?? null,
           isMajor: c.isMajor,
           description: c.description ?? null,

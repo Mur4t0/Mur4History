@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { useLocale } from "@/components/LanguageProvider";
 import { getCountryDisplayName } from "@/lib/i18n";
+import {
+  findNuclearPartners,
+  isTreatyEligibleForNuclearSharing,
+} from "@/lib/nuclear-doctrine";
 
 import {
   Bomb,
@@ -51,6 +55,7 @@ interface CountrySidebarProps {
     targetCode: string;
     targetRegionId?: string;
   }) => Promise<void> | void;
+  onRequestNuclearSharing?: (patronCode?: string) => void;
   onOpenWarMeddle?: (targetCode: string) => void;
 }
 
@@ -139,6 +144,7 @@ export function CountrySidebar({
   onInspectCountry,
   onFocusMarker,
   onQuickWarAction,
+  onRequestNuclearSharing,
   onOpenWarMeddle,
 }: CountrySidebarProps) {
   const { locale } = useLocale();
@@ -168,6 +174,27 @@ export function CountrySidebar({
   );
   const countryMap = new Map(allCountries.map((c) => [c.code, c]));
   const isPlayerCountry = country.code === playerCountryCode;
+  const countryWarheads = country.nuclearWarheads ?? 0;
+  const playerWarheads = playerCountryCode
+    ? (countryMap.get(playerCountryCode)?.nuclearWarheads ?? 0)
+    : 0;
+  const nuclearPartners = findNuclearPartners(
+    playerCountryCode,
+    allCountries,
+    diplomacies
+  );
+  const eligibleNuclearPatron = nuclearPartners.find((p) => p.eligible) ?? null;
+  const playerRelationWithInspected = playerCountryCode
+    ? diplomacies.find(
+        (d) =>
+          (d.countryA === playerCountryCode && d.countryB === country.code) ||
+          (d.countryB === playerCountryCode && d.countryA === country.code)
+      )
+    : undefined;
+  const canAskInspectedCountryForNuke =
+    !isPlayerCountry &&
+    countryWarheads > 1 &&
+    isTreatyEligibleForNuclearSharing(playerRelationWithInspected);
 
   const relations = diplomacies.filter(
     (d) =>
@@ -373,7 +400,51 @@ export function CountrySidebar({
                     </Button>
                   )}
 
-                  {confirmSidebarNuke ? (
+                  {playerWarheads <= 0 ? (
+                    <div className="col-span-2 space-y-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled
+                        data-testid="sidebar-nuke-locked-btn"
+                        className="h-7 w-full border-red-500/25 bg-red-950/15 text-[10px] text-red-300/60"
+                      >
+                        <Radiation className="h-3 w-3" />
+                        {isTr
+                          ? "Nükleer Füze Kilitli (0 Başlık)"
+                          : "Nuclear Strike Locked (0 Warheads)"}
+                      </Button>
+                      {onRequestNuclearSharing && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          data-testid="sidebar-request-nuke-btn"
+                          onClick={() =>
+                            onRequestNuclearSharing(
+                              canAskInspectedCountryForNuke
+                                ? country.code
+                                : eligibleNuclearPatron?.code ??
+                                    nuclearPartners[0]?.code
+                            )
+                          }
+                          className="h-7 w-full border-amber-500/45 bg-amber-950/25 text-[10px] text-amber-300 hover:bg-amber-500/20"
+                        >
+                          <Radiation className="h-3 w-3" />
+                          {canAskInspectedCountryForNuke
+                            ? isTr
+                              ? `Antlaşmayla ${country.code}'dan Nükleer İste`
+                              : `Request Nuclear Sharing from ${country.code}`
+                            : eligibleNuclearPatron
+                              ? isTr
+                                ? `Müttefik ${eligibleNuclearPatron.code}'dan Nükleer İste`
+                                : `Ask Ally ${eligibleNuclearPatron.code} for Nukes`
+                              : isTr
+                                ? "Nükleer Güçle Antlaşma Görüş"
+                                : "Negotiate Nuclear Treaty"}
+                        </Button>
+                      )}
+                    </div>
+                  ) : confirmSidebarNuke ? (
                     <Button
                       size="sm"
                       disabled={warBusy}
@@ -394,8 +465,8 @@ export function CountrySidebar({
                     >
                       <Radiation className="h-3.5 w-3.5 animate-spin" />
                       {isTr
-                        ? `ONAYLA: ${selectedRegion?.regionName ?? country.code} Nükleer Vur!`
-                        : `CONFIRM NUKING ${selectedRegion?.regionName ?? country.code}!`}
+                        ? `ONAYLA: ${selectedRegion?.regionName ?? country.code} Nükleer Vur! (${playerWarheads} Başlık)`
+                        : `CONFIRM NUKING ${selectedRegion?.regionName ?? country.code}! (${playerWarheads} Left)`}
                     </Button>
                   ) : (
                     <Button
@@ -407,8 +478,8 @@ export function CountrySidebar({
                     >
                       <Bomb className="h-3 w-3" />
                       {isTr
-                        ? `Nükleer Füze Fırlat (${selectedRegion?.regionName ?? country.code})`
-                        : `Launch Nuclear Strike (${selectedRegion?.regionName ?? country.code})`}
+                        ? `Nükleer Füze Fırlat (${playerWarheads} Başlık)`
+                        : `Launch Nuclear Strike (${playerWarheads} Left)`}
                     </Button>
                   )}
                 </div>
@@ -453,6 +524,24 @@ export function CountrySidebar({
               </span>
               <span className="shrink-0 font-mono font-semibold text-foreground">
                 {ownedRegions.length} {isTr ? "Bölge" : "Regions"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
+                <Radiation
+                  className={`h-3.5 w-3.5 ${
+                    countryWarheads > 0 ? "text-amber-400" : "text-muted-foreground"
+                  }`}
+                />
+                {isTr ? "Nükleer Başlık Stoğu" : "Nuclear Warheads"}
+              </span>
+              <span
+                data-testid="sidebar-nuclear-count"
+                className={`shrink-0 font-mono font-bold ${
+                  countryWarheads > 0 ? "text-amber-300" : "text-muted-foreground"
+                }`}
+              >
+                {countryWarheads} {isTr ? "Başlık" : "Warheads"}
               </span>
             </div>
           </div>

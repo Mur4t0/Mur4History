@@ -19,6 +19,7 @@ export type SessionRealtimeEventType =
   | "war_operation_started"
   | "war_operation_updated"
   | "nuclear_strike"
+  | "nuclear_transferred"
   | "diplomatic_provocation"
   | "advisor_chat_updated"
   | "advisor_chat_reply"

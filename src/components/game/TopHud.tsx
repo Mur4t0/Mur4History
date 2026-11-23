@@ -12,6 +12,7 @@ import {
   History,
   MessageSquare,
   PlugZap,
+  Radiation,
   Save,
   Settings2,
   ShieldAlert,
@@ -331,21 +332,52 @@ export function TopHud({
               )}
             </Button>
             {onOpenWarRoom && (
-              <Button
-                size="sm"
-                variant="outline"
-                data-testid="open-war-room-btn"
-                onClick={onOpenWarRoom}
-                className="border-rose-500/45 bg-rose-950/30 text-rose-300 hover:bg-rose-900/40"
-              >
-                <Swords className={`h-3.5 w-3.5 ${liveWarsCount > 0 ? "animate-pulse" : ""}`} />
-                {isEn ? "War Room" : "Savaş & Kışkırt"}
-                {liveWarsCount > 0 && (
-                  <span className="ml-1 rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white">
-                    {liveWarsCount}
-                  </span>
-                )}
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  data-testid="open-war-room-btn"
+                  onClick={onOpenWarRoom}
+                  className="border-rose-500/45 bg-rose-950/30 text-rose-300 hover:bg-rose-900/40"
+                >
+                  <Swords className={`h-3.5 w-3.5 ${liveWarsCount > 0 ? "animate-pulse" : ""}`} />
+                  {isEn ? "War Room" : "Savaş & Kışkırt"}
+                  {liveWarsCount > 0 && (
+                    <span className="ml-1 rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white">
+                      {liveWarsCount}
+                    </span>
+                  )}
+                </Button>
+                {(() => {
+                  const playerNukes =
+                    session.countries.find(
+                      (c) => c.code === session.playerCountryCode
+                    )?.nuclearWarheads ?? 0;
+                  return (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-testid="hud-nuclear-badge"
+                      onClick={onOpenWarRoom}
+                      title={
+                        isEn
+                          ? `Nuclear Arsenal: ${playerNukes} warhead(s). Acquire via domestic nuclear program or negotiate under an Alliance treaty.`
+                          : `Nükleer Cephanelik: ${playerNukes} başlık. Nükleer programla üretebilir veya antlaşmalı müttefikle konuşarak talep edebilirsiniz.`
+                      }
+                      className={
+                        playerNukes > 0
+                          ? "border-amber-500/50 bg-amber-950/30 text-amber-300 hover:bg-amber-900/40 font-mono"
+                          : "border-border/70 bg-secondary/40 text-muted-foreground hover:text-amber-300 font-mono"
+                      }
+                    >
+                      <Radiation
+                        className={`h-3.5 w-3.5 ${playerNukes > 0 ? "text-amber-400" : ""}`}
+                      />
+                      <span>{playerNukes}</span>
+                    </Button>
+                  );
+                })()}
+              </>
             )}
           </>
         )}

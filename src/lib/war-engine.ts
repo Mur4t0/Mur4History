@@ -10,6 +10,12 @@ import {
 } from "@/lib/realtime";
 import { clamp, sortCountryPair } from "@/lib/utils";
 import type { WarRiskSummary } from "@/lib/client-types";
+import {
+  evaluateTreatyNuclearTransferAcceptance,
+  findNuclearPartners,
+  isNuclearEraDate,
+  isTreatyEligibleForNuclearSharing,
+} from "@/lib/nuclear-doctrine";
 
 export type WarOperationType =
   | "SIEGE"
@@ -41,6 +47,7 @@ interface CountryLike {
   treasury: number;
   infamy: number;
   warExhaustion: number;
+  nuclearWarheads: number;
   capitalRegionId: string | null;
   isMajor: boolean;
 }
@@ -509,6 +516,15 @@ export async function computeSessionWarRisks(
 
   globalHotspots.sort((x, y) => y.probability - x.probability);
 
+  const playerWarheads = activeFocus
+    ? (countryByCode.get(activeFocus)?.nuclearWarheads ?? 0)
+    : 0;
+  const nuclearPartners = findNuclearPartners(
+    activeFocus,
+    countries,
+    diplomacies
+  );
+
   return {
     sessionId,
     globalTension: session.globalTension,
@@ -516,6 +532,9 @@ export async function computeSessionWarRisks(
     activeOperationsCount: warOps.filter((w) =>
       ["MARCHING", "BESIEGING", "ACTIVE"].includes(w.status)
     ).length,
+    playerWarheads,
+    nuclearEra: isNuclearEraDate(session.currentDate),
+    nuclearPartners,
     playerRisks,
     globalHotspots: globalHotspots.slice(0, 30),
     warOperations: warOps.map((w) => ({
@@ -729,6 +748,40 @@ export async function launchWarOperation(params: {
 
   const isNuke = operationType === "NUCLEAR_STRIKE";
 
+  if (isNuke && (attacker.nuclearWarheads ?? 0) <= 0) {
+    const [allCountries, allDiplomacies] = await Promise.all([
+      prisma.country.findMany({ where: { sessionId } }),
+      prisma.diplomacyRelation.findMany({ where: { sessionId } }),
+    ]);
+    const atkDisp = getCountryDisplayName(attacker.code, attacker.name, locale);
+    const eligiblePatrons = findNuclearPartners(
+      attacker.code,
+      allCountries,
+      allDiplomacies
+    ).filter((p) => p.eligible);
+
+    if (eligiblePatrons.length > 0) {
+      const patronNames = eligiblePatrons
+        .slice(0, 3)
+        .map(
+          (p) =>
+            `${getCountryDisplayName(p.code, p.name, locale)} (${p.treatyName ?? p.status}: ${p.warheads})`
+        )
+        .join(", ");
+      throw new Error(
+        isTr
+          ? `${atkDisp} envanterinde nükleer başlık yok (0 başlık)! Antlaşmalı müttefikinizle (${patronNames}) lider sohbetinden görüşüp antlaşma kapsamında nükleer başlık desteği isteyebilirsiniz.`
+          : `${atkDisp} has 0 nuclear warheads in its stockpile! Open Leader Chat with a treaty ally (${patronNames}) to negotiate nuclear sharing support.`
+      );
+    }
+
+    throw new Error(
+      isTr
+        ? `${atkDisp} envanterinde nükleer başlık yok (0 başlık)! Nükleer güce sahip bir ülkeyle ittifak/savunma antlaşması imzalayıp liderinden nükleer destek isteyebilir veya Emir Konsolundan nükleer program başlatabilirsiniz.`
+        : `${atkDisp} has 0 nuclear warheads! Sign a defense/nuclear sharing treaty with a nuclear power and ask their leader for warheads, or start a domestic nuclear program.`
+    );
+  }
+
   if (autoDeclareWar && operationType !== "REBEL_UPRISING") {
     const { previousStatus } = await upsertDiplomacyTension({
       sessionId,
@@ -804,7 +857,8 @@ export async function launchWarOperation(params: {
   });
 
   if (isNuke) {
-    // Devastate defender stats & create permanent fallout marker
+    const remainingWarheads = Math.max(0, (attacker.nuclearWarheads ?? 1) - 1);
+    // Devastate defender stats, consume 1 warhead, & create permanent fallout marker
     await prisma.$transaction([
       prisma.country.update({
         where: { id: defender.id },
@@ -818,6 +872,7 @@ export async function launchWarOperation(params: {
       prisma.country.update({
         where: { id: attacker.id },
         data: {
+          nuclearWarheads: remainingWarheads,
           infamy: clamp(attacker.infamy + 26, 0, 100),
           warExhaustion: clamp(attacker.warExhaustion + 8, 0, 100),
         },
@@ -877,6 +932,7 @@ export async function launchWarOperation(params: {
         updatedAt: created.updatedAt.toISOString(),
       },
       marker: craterMarker,
+      remainingWarheads,
     });
     emitSessionEvent(sessionId, "map_marker_updated", {
       action: "CREATED",
@@ -886,6 +942,7 @@ export async function launchWarOperation(params: {
     emitSessionEvent(sessionId, "event_published", {
       event: { ...nukeEvent, involvedCountries: [attackerCode, defenderCode] },
     });
+    emitSessionEvent(sessionId, "stats_updated", { countryCode: attackerCode });
     emitSessionEvent(sessionId, "stats_updated", { countryCode: defenderCode });
   } else {
     const warEv = await prisma.worldEvent.create({
@@ -1492,6 +1549,415 @@ export async function provokeNationAction(params: {
     newTension: warTriggeredByRetaliation ? 100 : relation.tension,
     operation: op,
     summary: msg.message,
+  };
+}
+
+/**
+ * Transfer nuclear warheads from a nuclear donor nation to a recipient nation under a
+ * mutual alliance / nuclear-sharing treaty umbrella (atomic DB update + map marker + chronicle).
+ */
+export async function transferNuclearWarheads(params: {
+  sessionId: string;
+  fromCode: string;
+  toCode: string;
+  count?: number;
+  treatyName?: string;
+  reason?: string;
+  requireTreaty?: boolean;
+  skipAiWake?: boolean;
+}) {
+  const {
+    sessionId,
+    fromCode: rawFrom,
+    toCode: rawTo,
+    count: rawCount = 1,
+    treatyName,
+    reason,
+    requireTreaty = true,
+  } = params;
+
+  const fromCode = rawFrom.trim().toUpperCase();
+  const toCode = rawTo.trim().toUpperCase();
+  const count = clamp(Math.round(rawCount), 1, 20);
+
+  const session = await prisma.gameSession.findUnique({
+    where: { id: sessionId },
+  });
+  if (!session) throw new Error(`Oturum bulunamadı: ${sessionId}`);
+
+  const locale = getActiveMcpLocale(sessionId);
+  const isTr = locale === "tr";
+
+  if (fromCode === toCode) {
+    throw new Error(
+      isTr
+        ? "Bir ülke kendisine nükleer başlık devredemez."
+        : "A nation cannot transfer nuclear warheads to itself."
+    );
+  }
+
+  const [donor, recipient] = await Promise.all([
+    prisma.country.findUniqueOrThrow({
+      where: { sessionId_code: { sessionId, code: fromCode } },
+    }),
+    prisma.country.findUniqueOrThrow({
+      where: { sessionId_code: { sessionId, code: toCode } },
+    }),
+  ]);
+
+  const fromDisp = getCountryDisplayName(donor.code, donor.name, locale);
+  const toDisp = getCountryDisplayName(recipient.code, recipient.name, locale);
+
+  const [a, b] = sortCountryPair(fromCode, toCode);
+  const relation = await prisma.diplomacyRelation.findUnique({
+    where: { sessionId_countryA_countryB: { sessionId, countryA: a, countryB: b } },
+  });
+
+  if (requireTreaty && !isTreatyEligibleForNuclearSharing(relation)) {
+    throw new Error(
+      isTr
+        ? `${fromDisp} ile ${toDisp} arasında aktif bir İttifak / Nükleer Savunma Antlaşması bulunmuyor! Önce antlaşma imzalayıp liderle görüşmelisiniz.`
+        : `No active Alliance or Nuclear Sharing Treaty exists between ${fromDisp} and ${toDisp}! Sign a defense alliance first and negotiate with their leader.`
+    );
+  }
+
+  const donorStock = donor.nuclearWarheads ?? 0;
+  if (donorStock < count + 1) {
+    throw new Error(
+      isTr
+        ? `${fromDisp} envanterinde devredilebilecek yeterli nükleer başlık yok (Mevcut: ${donorStock}, en az 1 stratejik başlık rezervde kalmalı).`
+        : `${fromDisp} lacks sufficient surplus nuclear warheads (Current: ${donorStock}; at least 1 must remain in strategic reserve).`
+    );
+  }
+
+  const resolvedTreaty =
+    treatyName?.trim() ||
+    relation?.treatyName ||
+    (isTr ? "Stratejik Nükleer Paylaşım Protokolü" : "Nuclear Sharing Protocol");
+
+  const nextDonorWarheads = donorStock - count;
+  const nextRecipientWarheads = (recipient.nuclearWarheads ?? 0) + count;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.country.update({
+      where: { id: donor.id },
+      data: { nuclearWarheads: nextDonorWarheads },
+    });
+    await tx.country.update({
+      where: { id: recipient.id },
+      data: { nuclearWarheads: nextRecipientWarheads },
+    });
+
+    if (relation) {
+      await tx.diplomacyRelation.update({
+        where: { id: relation.id },
+        data: {
+          tension: Math.max(0, relation.tension - 5),
+          ...(treatyName?.trim() ? { treatyName: treatyName.trim() } : {}),
+          updatedTurn: session.turnNumber,
+        },
+      });
+    }
+
+    await tx.gameSession.update({
+      where: { id: sessionId },
+      data: {
+        globalTension: clamp(session.globalTension + 4, 0, 100),
+      },
+    });
+  });
+
+  const capitalCoords = resolveMarkerCoordinates({
+    regionId: recipient.capitalRegionId,
+    cityName: recipient.name,
+    fallbackRegionId: recipient.capitalRegionId,
+  });
+
+  const marker = await prisma.mapMarker.create({
+    data: {
+      sessionId,
+      countryCode: toCode,
+      regionId: recipient.capitalRegionId ?? null,
+      cityName: toDisp,
+      title: isTr
+        ? `Nükleer Başlık Konuşlandırması (${fromCode} → ${toCode})`
+        : `Nuclear Warhead Sharing (${fromCode} → ${toCode})`,
+      description:
+        reason?.trim() ||
+        (isTr
+          ? `${resolvedTreaty} kapsamında ${fromDisp}, ${toDisp} topraklarına ${count} adet nükleer başlık konuşlandırdı.`
+          : `Under ${resolvedTreaty}, ${fromDisp} deployed ${count} nuclear warhead(s) to ${toDisp}.`),
+      category: "MILITARY",
+      status: "ACTIVE",
+      level: clamp(2 + count, 2, 5),
+      lat: capitalCoords.lat,
+      lng: capitalCoords.lng,
+      turnNumber: session.turnNumber,
+      gameDate: session.currentDate,
+      isAnimated: true,
+    },
+  });
+
+  const event = await prisma.worldEvent.create({
+    data: {
+      sessionId,
+      turnNumber: session.turnNumber,
+      gameDate: session.currentDate,
+      headline: isTr
+        ? `${fromDisp}, ${resolvedTreaty} Kapsamında ${toDisp}'ya ${count} Nükleer Başlık Sağladı!`
+        : `${fromDisp} Transfers ${count} Nuclear Warhead(s) to ${toDisp} Under ${resolvedTreaty}!`,
+      articleBody:
+        reason?.trim() ||
+        (isTr
+          ? `Liderler zirvesi ve ${resolvedTreaty} çerçevesinde ${fromDisp} yönetimi, müttefiki ${toDisp}'ya ${count} adet stratejik nükleer başlık tahsis etti. ${toDisp} nükleer caydırıcılık şemsiyesine fiilen katıldı.`
+          : `Following bilateral leader talks under ${resolvedTreaty}, ${fromDisp} transferred ${count} nuclear warhead(s) to ${toDisp}, bringing ${toDisp} into active nuclear deterrence readiness.`),
+      category: "DIPLOMACY",
+      involvedCountries: JSON.stringify([fromCode, toCode]),
+    },
+  });
+
+  emitSessionEvent(sessionId, "nuclear_transferred", {
+    fromCode,
+    toCode,
+    count,
+    donorWarheads: nextDonorWarheads,
+    recipientWarheads: nextRecipientWarheads,
+    treatyName: resolvedTreaty,
+  });
+  emitSessionEvent(sessionId, "map_marker_updated", {
+    action: "CREATED",
+    marker,
+    isNew: true,
+  });
+  emitSessionEvent(sessionId, "event_published", {
+    event: { ...event, involvedCountries: [fromCode, toCode] },
+  });
+  emitSessionEvent(sessionId, "stats_updated", { countryCode: toCode });
+
+  return {
+    fromCode,
+    toCode,
+    count,
+    treatyName: resolvedTreaty,
+    donorWarheads: nextDonorWarheads,
+    recipientWarheads: nextRecipientWarheads,
+    marker,
+    event,
+  };
+}
+
+/**
+ * Negotiate nuclear warhead sharing directly with a treaty partner leader
+ * (either routed to MCP AI or evaluated through the active treaty protocol).
+ */
+export async function requestNuclearSharingWithAlly(params: {
+  sessionId: string;
+  patronCode: string;
+  requestedCount?: number;
+  customMessage?: string;
+  dispatch?: "ai" | "treaty_protocol";
+  locale?: AppLocale;
+}) {
+  const {
+    sessionId,
+    patronCode: rawPatron,
+    requestedCount: rawCount = 1,
+    customMessage,
+    dispatch = "treaty_protocol",
+  } = params;
+
+  const patronCode = rawPatron.trim().toUpperCase();
+  const requestedCount = clamp(Math.round(rawCount), 1, 3);
+  const locale = params.locale ?? getActiveMcpLocale(sessionId);
+  const isTr = locale === "tr";
+
+  const session = await prisma.gameSession.findUnique({
+    where: { id: sessionId },
+  });
+  if (!session) throw new Error(`Oturum bulunamadı: ${sessionId}`);
+  if (!session.playerCountryCode) {
+    throw new Error(
+      isTr ? "Önce oynanacak ülkeyi seçmelisiniz." : "Select a player country first."
+    );
+  }
+
+  const playerCode = session.playerCountryCode;
+  if (playerCode === patronCode) {
+    throw new Error(
+      isTr ? "Kendi ülkenizden başlık talep edemezsiniz." : "Cannot request from yourself."
+    );
+  }
+
+  const [player, patron] = await Promise.all([
+    prisma.country.findUniqueOrThrow({
+      where: { sessionId_code: { sessionId, code: playerCode } },
+    }),
+    prisma.country.findUniqueOrThrow({
+      where: { sessionId_code: { sessionId, code: patronCode } },
+    }),
+  ]);
+
+  const playerDisp = getCountryDisplayName(player.code, player.name, locale);
+  const patronDisp = getCountryDisplayName(patron.code, patron.name, locale);
+
+  const [a, b] = sortCountryPair(playerCode, patronCode);
+  const relation = await prisma.diplomacyRelation.findUnique({
+    where: { sessionId_countryA_countryB: { sessionId, countryA: a, countryB: b } },
+  });
+  const treatyLabel =
+    relation?.treatyName ||
+    (isTr ? "Savunma ve Nükleer Şemsiye Antlaşması" : "Defense & Nuclear Umbrella Pact");
+
+  const playerMessageText =
+    customMessage?.trim() ||
+    (isTr
+      ? `Sayın ${patron.leader}, aramızdaki "${treatyLabel}" antlaşma çatısı ve ortak güvenlik çıkarlarımız doğrultusunda ${playerDisp} envanterine ${requestedCount} adet taktik nükleer başlık konuşlandırılmasını ve nükleer destek sağlanmasını talep ediyoruz.`
+      : `Dear ${patron.leader}, under our shared "${treatyLabel}" treaty umbrella and mutual defense commitments, ${playerDisp} formally requests the deployment of ${requestedCount} tactical nuclear warhead(s) to our deterrent stockpile.`);
+
+  const playerChat = await prisma.leaderChatMessage.create({
+    data: {
+      sessionId,
+      countryCode: patronCode,
+      playerCountryCode: playerCode,
+      senderRole: "PLAYER",
+      senderName: `${player.leader} (${playerDisp})`,
+      content: playerMessageText,
+      status: dispatch === "ai" ? "PENDING_REPLY" : "DELIVERED",
+      turnNumber: session.turnNumber,
+      gameDate: session.currentDate,
+    },
+  });
+
+  emitSessionEvent(sessionId, "leader_chat_updated", {
+    countryCode: patronCode,
+    message: playerChat,
+  });
+
+  if (dispatch === "ai") {
+    markBrowserSessionActive(sessionId);
+    notifyPlayerAction(
+      sessionId,
+      "LEADER_CHAT",
+      `${playerCode} -> ${patronCode}: ${playerMessageText}`
+    );
+    return {
+      status: "PENDING_AI" as const,
+      transferred: 0,
+      playerMessage: playerChat,
+      leaderMessage: null,
+      summary: isTr
+        ? `Nükleer destek talebi ${patron.leader}'a (MCP AI) iletildi; lider yanıtı bekleniyor.`
+        : `Nuclear support proposal sent to ${patron.leader} (MCP AI); awaiting leader reply.`,
+    };
+  }
+
+  // Evaluate bilateral treaty & difficulty realism
+  const evalRes = evaluateTreatyNuclearTransferAcceptance({
+    difficulty: session.difficulty,
+    patronWarheads: patron.nuclearWarheads ?? 0,
+    requestedCount,
+    relationStatus: relation?.status ?? "NEUTRAL",
+    tension: relation?.tension ?? 25,
+    playerInfamy: player.infamy,
+    patronStability: patron.stability,
+    treatyName: relation?.treatyName ?? null,
+  });
+
+  if (evalRes.accepted && evalRes.grantedCount > 0) {
+    const transfer = await transferNuclearWarheads({
+      sessionId,
+      fromCode: patronCode,
+      toCode: playerCode,
+      count: evalRes.grantedCount,
+      treatyName: treatyLabel,
+      requireTreaty: true,
+      skipAiWake: true,
+    });
+
+    const replyText = isTr
+      ? `"${treatyLabel}" kapsamında müttefikimiz ${playerDisp}'ya güvenimiz tamdır. Stratejik caydırıcılık için envanterimizden ${evalRes.grantedCount} adet nükleer başlığın sevkini onaylıyorum. Yeni nükleer stokunuz: ${transfer.recipientWarheads} başlık.`
+      : `Under "${treatyLabel}", we stand firmly behind ${playerDisp}. I have authorized the transfer of ${evalRes.grantedCount} nuclear warhead(s) from our stockpile to your forces. New arsenal: ${transfer.recipientWarheads}.`;
+
+    const leaderChat = await prisma.leaderChatMessage.create({
+      data: {
+        sessionId,
+        countryCode: patronCode,
+        playerCountryCode: playerCode,
+        senderRole: "LEADER",
+        senderName: `${patron.leader} (${patronDisp})`,
+        content: replyText,
+        status: "DELIVERED",
+        turnNumber: session.turnNumber,
+        gameDate: session.currentDate,
+      },
+    });
+
+    emitSessionEvent(sessionId, "leader_chat_reply", {
+      countryCode: patronCode,
+      message: leaderChat,
+    });
+
+    return {
+      status: "APPROVED" as const,
+      transferred: evalRes.grantedCount,
+      newPlayerWarheads: transfer.recipientWarheads,
+      playerMessage: playerChat,
+      leaderMessage: leaderChat,
+      summary: isTr
+        ? `${patronDisp} antlaşma kapsamında +${evalRes.grantedCount} nükleer başlık verdi! (Toplam: ${transfer.recipientWarheads})`
+        : `${patronDisp} transferred +${evalRes.grantedCount} nuclear warhead(s) under treaty! (Total: ${transfer.recipientWarheads})`,
+    };
+  }
+
+  let rejectionText: string;
+  if (evalRes.reasonCode === "NO_TREATY") {
+    rejectionText = isTr
+      ? `Sayın ${player.leader}, aramızda henüz resmi bir İttifak veya Nükleer Savunma Antlaşması bulunmuyor. Nükleer silah paylaşımı yapabilmemiz için önce ortak bir savunma ittifakı (${patronDisp}–${playerDisp} Paktı) imzalamamız şarttır.`
+      : `Dear ${player.leader}, we do not yet share an active Alliance or Defense Umbrella Treaty. We must first establish a binding alliance before any nuclear warhead sharing can be authorized.`;
+  } else if (evalRes.reasonCode === "INSUFFICIENT_ARSENAL") {
+    rejectionText = isTr
+      ? `Üzgünüm, şu an ${patronDisp} cephaneliğinde kendi stratejik rezervimizi riske atmadan devredebileceğimiz yeterli nükleer başlık bulunmuyor (Mevcut: ${patron.nuclearWarheads ?? 0}).`
+      : `Unfortunately, ${patronDisp} cannot spare nuclear warheads right now without compromising our own minimum deterrent (${patron.nuclearWarheads ?? 0} remaining).`;
+  } else if (evalRes.reasonCode === "HIGH_TENSION") {
+    rejectionText = isTr
+      ? `İkili ilişkilerimizdeki gerilim (${relation?.tension ?? 50}) henüz başlık devri için gereken güven eşiğinin üzerinde. Önce diplomatik gerilimi düşürelim.`
+      : `Bilateral tension (${relation?.tension ?? 50}) is still too high to authorize nuclear warhead sharing. Let us de-escalate and build trust first.`;
+  } else if (evalRes.reasonCode === "TOO_MUCH_INFAMY") {
+    rejectionText = isTr
+      ? `${playerDisp}'nın küresel agresiflik puanı (Infamy: ${player.infamy}) parlamentomuzu endişelendiriyor; mevcut zorluk seviyesinde bu kadar yüksek gerilimde nükleer başlık devredemeyiz.`
+      : `${playerDisp}'s high international infamy (${player.infamy}) prevents our leadership from approving nuclear warhead transfers under current geopolitical scrutiny.`;
+  } else {
+    rejectionText = isTr
+      ? `Mevcut "${treatyLabel}" koşullarımız ve askeri kurmaylarımızın değerlendirmesi (Skor ${evalRes.score}/${evalRes.threshold}), şu aşamada ${requestedCount} başlık transferine izin vermiyor. İlişkileri güçlendirip AI Lider görüşmesinden daha ikna edici garantiler sunabilirsiniz.`
+      : `Under our "${treatyLabel}" review (Score ${evalRes.score}/${evalRes.threshold}), our defense council declines transferring ${requestedCount} warheads right now. Improve trust or negotiate specific terms via AI Leader Chat.`;
+  }
+
+  const leaderChat = await prisma.leaderChatMessage.create({
+    data: {
+      sessionId,
+      countryCode: patronCode,
+      playerCountryCode: playerCode,
+      senderRole: "LEADER",
+      senderName: `${patron.leader} (${patronDisp})`,
+      content: rejectionText,
+      status: "DELIVERED",
+      turnNumber: session.turnNumber,
+      gameDate: session.currentDate,
+    },
+  });
+
+  emitSessionEvent(sessionId, "leader_chat_reply", {
+    countryCode: patronCode,
+    message: leaderChat,
+  });
+
+  return {
+    status: "REJECTED" as const,
+    reasonCode: evalRes.reasonCode,
+    transferred: 0,
+    playerMessage: playerChat,
+    leaderMessage: leaderChat,
+    summary: rejectionText,
   };
 }
 

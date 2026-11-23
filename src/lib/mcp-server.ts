@@ -45,6 +45,7 @@ import {
   launchWarOperation,
   provokeNationAction,
   readWarTheaterResource,
+  transferNuclearWarheads,
 } from "@/lib/war-engine";
 
 async function resolveTargetSessionId(
@@ -321,6 +322,11 @@ export function createGameMasterMcpServer(boundSessionId: string): McpServer {
             .number()
             .optional()
             .describe(d("Opsiyonel: Savaş Yorgunluğu % (0-100) değişimi.", "Optional: War exhaustion % (0-100) delta.")),
+          nuclear_warheads_delta: z
+            .number()
+            .int()
+            .optional()
+            .describe(d("Opsiyonel: Yerli nükleer program/üretim sonucu eklenen veya eksilen başlık sayısı.", "Optional: Delta in national nuclear warhead stockpile.")),
           new_ideology: z
             .string()
             .optional()
@@ -334,6 +340,7 @@ export function createGameMasterMcpServer(boundSessionId: string): McpServer {
         stability_delta,
         infamy_delta,
         war_exhaustion_delta,
+        nuclear_warheads_delta,
         new_ideology,
       }) => {
         const sid = await resolveId();
@@ -345,6 +352,7 @@ export function createGameMasterMcpServer(boundSessionId: string): McpServer {
           stability_delta,
           infamy_delta,
           war_exhaustion_delta,
+          nuclear_warheads_delta,
           new_ideology,
         });
         return {
@@ -530,6 +538,21 @@ export function createGameMasterMcpServer(boundSessionId: string): McpServer {
             .string()
             .optional()
             .describe(d("Opsiyonel: İmzalanan antlaşma veya kriz adı.", "Optional: Signed treaty or crisis name.")),
+          transfer_nuclear_warheads: z
+            .number()
+            .int()
+            .min(1)
+            .max(10)
+            .optional()
+            .describe(d("Opsiyonel: Yanıt veren liderin antlaşma kapsamında oyuncuya devrettiği nükleer başlık sayısı (1-10).", "Optional: Number of nuclear warheads (1-10) the replying leader transfers to the player under a treaty.")),
+          nuclear_treaty_name: z
+            .string()
+            .optional()
+            .describe(d("Opsiyonel: Nükleer paylaşım antlaşmasının adı (örn. NATO Nükleer Paylaşım Protokolü).", "Optional: Name of the nuclear sharing protocol/treaty.")),
+          nuclear_require_treaty: z
+            .boolean()
+            .optional()
+            .describe(d("Varsayılan true: Yalnızca aktif ittifak/antlaşma çatısı altında nükleer devrine izin ver.", "Default true: Require an active Alliance or nuclear umbrella treaty for warhead transfer.")),
         },
       },
       async ({
@@ -538,6 +561,9 @@ export function createGameMasterMcpServer(boundSessionId: string): McpServer {
         reply_message,
         relation_status,
         treaty_name,
+        transfer_nuclear_warheads,
+        nuclear_treaty_name,
+        nuclear_require_treaty,
       }) => {
         const sid = await resolveId();
         const res = await toolReplyLeaderChat({
@@ -547,6 +573,9 @@ export function createGameMasterMcpServer(boundSessionId: string): McpServer {
           reply_message,
           relation_status,
           treaty_name,
+          transfer_nuclear_warheads,
+          nuclear_treaty_name,
+          nuclear_require_treaty,
         });
         return {
           content: [
@@ -1164,6 +1193,64 @@ export function createGameMasterMcpServer(boundSessionId: string): McpServer {
             {
               type: "text",
               text: JSON.stringify({ ok: true, operation: op }, null, 2),
+            },
+          ],
+        };
+      }
+    )
+  );
+
+  toolHandles.set(
+    "transfer_nuclear_warheads",
+    server.registerTool(
+      "transfer_nuclear_warheads",
+      {
+        ...initialMeta.tools.transfer_nuclear_warheads,
+        inputSchema: {
+          from_country_id: z
+            .string()
+            .describe(d("Nükleer başlığı sağlayan nükleer güç ülke kodu (örn. 'USA', 'RUS').", "Nuclear donor country code (e.g. 'USA', 'RUS').")),
+          to_country_id: z
+            .string()
+            .describe(d("Nükleer başlığı alan müttefik ülke kodu (örn. 'TUR').", "Recipient allied country code (e.g. 'TUR').")),
+          count: z
+            .number()
+            .int()
+            .min(1)
+            .max(20)
+            .default(1)
+            .describe(d("Devredilecek nükleer başlık sayısı (1-20).", "Number of warheads to transfer (1-20).")),
+          treaty_name: z
+            .string()
+            .optional()
+            .describe(d("Paylaşımın dayandığı antlaşma adı (örn. NATO Nükleer Paylaşım Protokolü).", "Treaty umbrella name backing this sharing transfer.")),
+          reason: z
+            .string()
+            .optional()
+            .describe(d("Devrin diplomatik/stratejik gerekçesi.", "Diplomatic or strategic rationale.")),
+          require_treaty: z
+            .boolean()
+            .default(true)
+            .describe(d("True ise aktif İttifak / Savunma Antlaşması bulunması zorunludur.", "If true, requires active Alliance or defense umbrella treaty.")),
+        },
+      },
+      async (args) => {
+        const sid = await resolveId();
+        const res = await transferNuclearWarheads({
+          sessionId: sid,
+          fromCode: args.from_country_id,
+          toCode: args.to_country_id,
+          count: args.count,
+          treatyName: args.treaty_name,
+          reason: args.reason,
+          requireTreaty: args.require_treaty,
+          skipAiWake: true,
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ ok: true, ...res }, null, 2),
             },
           ],
         };

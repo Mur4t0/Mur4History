@@ -22,7 +22,13 @@ import { resolveMarkerCoordinates } from "@/lib/geo-cities";
 import {
   advanceLiveWarOperations,
   launchWarOperation,
+  transferNuclearWarheads,
 } from "@/lib/war-engine";
+import {
+  getInitialNuclearWarheads,
+  isNuclearEraDate,
+  isTreatyEligibleForNuclearSharing,
+} from "@/lib/nuclear-doctrine";
 import {
   advanceDateByInterval,
   advanceDateMonths,
@@ -50,6 +56,7 @@ export interface SessionSnapshotPayload {
     treasury: number;
     infamy?: number;
     warExhaustion?: number;
+    nuclearWarheads?: number;
     capitalRegionId: string | null;
     isMajor: boolean;
     description: string | null;
@@ -138,6 +145,7 @@ async function buildSnapshotJson(sessionId: string): Promise<string> {
       treasury: c.treasury,
       infamy: c.infamy,
       warExhaustion: c.warExhaustion,
+      nuclearWarheads: c.nuclearWarheads,
       capitalRegionId: c.capitalRegionId,
       isMajor: c.isMajor,
       description: c.description,
@@ -243,6 +251,7 @@ export async function createSessionFromScenario(
       difficulty: validDifficulty,
       timeJumpInterval,
       awaitingAiSimulation: false,
+      nuclearSeeded: true,
     },
   });
 
@@ -259,6 +268,11 @@ export async function createSessionFromScenario(
       military: c.military,
       stability: c.stability,
       treasury: c.treasury,
+      nuclearWarheads: getInitialNuclearWarheads(
+        c.code,
+        config.startDate,
+        config.slug
+      ),
       capitalRegionId: c.capitalRegionId ?? null,
       isMajor: c.isMajor,
       description: c.description ?? null,
@@ -329,7 +343,59 @@ export async function createSessionFromScenario(
   return getFullSessionState(session.id);
 }
 
+/** Lazily backfill era-calibrated nuclear stockpiles once for older/existing saves. */
+export async function ensureSessionNuclearSeeded(sessionId: string) {
+  const check = await prisma.gameSession.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      currentDate: true,
+      nuclearSeeded: true,
+      scenario: { select: { slug: true } },
+    },
+  });
+  if (!check || check.nuclearSeeded) return;
+
+  if (isNuclearEraDate(check.currentDate)) {
+    const countries = await prisma.country.findMany({
+      where: { sessionId },
+      select: { id: true, code: true, nuclearWarheads: true },
+    });
+    const updates = countries
+      .map((c) => ({
+        id: c.id,
+        current: c.nuclearWarheads,
+        seeded: getInitialNuclearWarheads(
+          c.code,
+          check.currentDate,
+          check.scenario.slug
+        ),
+      }))
+      .filter((x) => x.current === 0 && x.seeded > 0);
+
+    await prisma.$transaction([
+      ...updates.map((u) =>
+        prisma.country.update({
+          where: { id: u.id },
+          data: { nuclearWarheads: u.seeded },
+        })
+      ),
+      prisma.gameSession.update({
+        where: { id: sessionId },
+        data: { nuclearSeeded: true },
+      }),
+    ]);
+  } else {
+    await prisma.gameSession.update({
+      where: { id: sessionId },
+      data: { nuclearSeeded: true },
+    });
+  }
+}
+
 export async function getFullSessionState(sessionId: string) {
+  await ensureSessionNuclearSeeded(sessionId);
+
   const existingCheck = await prisma.gameSession.findUnique({
     where: { id: sessionId },
     select: {
@@ -492,13 +558,19 @@ export async function readWorldStateResource(
   sessionId: string,
   explicitLocale?: AppLocale
 ) {
+  await ensureSessionNuclearSeeded(sessionId);
   const session = await prisma.gameSession.findUnique({
     where: { id: sessionId },
     include: {
       scenario: true,
       diplomacies: true,
       countries: {
-        select: { code: true, name: true, flagEmoji: true },
+        select: {
+          code: true,
+          name: true,
+          flagEmoji: true,
+          nuclearWarheads: true,
+        },
       },
     },
   });
@@ -529,16 +601,19 @@ export async function readWorldStateResource(
       treatyName: d.treatyName,
     }));
 
+  const playerCountryRow = session.playerCountryCode
+    ? session.countries.find((c) => c.code === session.playerCountryCode) ?? null
+    : null;
+
   const localized = localizeWorldStateFields({
     locale,
     difficulty: session.difficulty,
     timeJumpInterval: session.timeJumpInterval,
     scenario: session.scenario,
     playerCountryCode: session.playerCountryCode,
-    playerCountryRawName: session.playerCountryCode
-      ? session.countries.find((c) => c.code === session.playerCountryCode)?.name ??
-        session.playerCountryCode
-      : null,
+    playerCountryRawName: playerCountryRow
+      ? playerCountryRow.name
+      : session.playerCountryCode,
   });
   const suggestedNextDate = advanceDateByInterval(
     session.currentDate,
@@ -567,9 +642,11 @@ export async function readWorldStateResource(
     currentDate: session.currentDate,
     turnNumber: session.turnNumber,
     globalTension: session.globalTension,
+    nuclearEra: isNuclearEraDate(session.currentDate),
     awaitingAiSimulation: session.awaitingAiSimulation,
     playerCountryCode: session.playerCountryCode,
     playerCountryName: localized.playerCountryName,
+    playerNuclearWarheads: playerCountryRow?.nuclearWarheads ?? 0,
     activeWars,
     alliances,
   };
@@ -579,6 +656,7 @@ export async function readCountriesResource(
   sessionId: string,
   explicitLocale?: AppLocale
 ) {
+  await ensureSessionNuclearSeeded(sessionId);
   const locale = explicitLocale ?? getActiveMcpLocale(sessionId);
   const [countries, regions] = await Promise.all([
     prisma.country.findMany({
@@ -615,6 +693,7 @@ export async function readCountriesResource(
       treasury: c.treasury,
       infamy: c.infamy,
       war_exhaustion: c.warExhaustion,
+      nuclear_warheads: c.nuclearWarheads,
       capital_region_id: c.capitalRegionId,
       is_major: c.isMajor,
       province_count: stats.provinces,
@@ -900,6 +979,7 @@ export async function toolUpdateCountryStats(params: {
   stability_delta: number;
   infamy_delta?: number;
   war_exhaustion_delta?: number;
+  nuclear_warheads_delta?: number;
   new_ideology?: string;
 }) {
   const {
@@ -910,6 +990,7 @@ export async function toolUpdateCountryStats(params: {
     stability_delta,
     infamy_delta = 0,
     war_exhaustion_delta = 0,
+    nuclear_warheads_delta = 0,
     new_ideology,
   } = params;
 
@@ -927,6 +1008,10 @@ export async function toolUpdateCountryStats(params: {
     0,
     100
   );
+  const nextNuclearWarheads = Math.max(
+    0,
+    (current.nuclearWarheads ?? 0) + Math.round(nuclear_warheads_delta)
+  );
   const nextTreasury = Math.max(
     0,
     current.treasury + Math.round(economy_delta * 35)
@@ -940,6 +1025,7 @@ export async function toolUpdateCountryStats(params: {
       stability: nextStability,
       infamy: nextInfamy,
       warExhaustion: nextWarExhaustion,
+      nuclearWarheads: nextNuclearWarheads,
       treasury: nextTreasury,
       ideology: new_ideology?.trim() ? new_ideology.trim() : current.ideology,
     },
@@ -953,6 +1039,7 @@ export async function toolUpdateCountryStats(params: {
       stability_delta,
       infamy_delta,
       war_exhaustion_delta,
+      nuclear_warheads_delta,
     },
   });
 
@@ -1384,6 +1471,7 @@ export async function rollbackSessionToTurn(
         treasury: c.treasury,
         infamy: c.infamy ?? 0,
         warExhaustion: c.warExhaustion ?? 0,
+        nuclearWarheads: c.nuclearWarheads ?? 0,
         capitalRegionId: c.capitalRegionId,
         isMajor: c.isMajor,
         description: c.description,
@@ -1502,6 +1590,7 @@ export async function sendPlayerLeaderChat(params: {
 }
 
 export async function readPendingLeaderChatsResource(sessionId: string) {
+  await ensureSessionNuclearSeeded(sessionId);
   const locale = getActiveMcpLocale(sessionId);
   const t = getMcpToolInstructions(locale);
   const session = await prisma.gameSession.findUnique({
@@ -1517,6 +1606,9 @@ export async function readPendingLeaderChatsResource(sessionId: string) {
   if (!session) throw new Error(`Oturum bulunamadı: ${sessionId}`);
 
   const countryMap = new Map(session.countries.map((c) => [c.code, c]));
+  const playerCountry = session.playerCountryCode
+    ? countryMap.get(session.playerCountryCode)
+    : undefined;
   const byCountry = new Map<string, typeof session.leaderChats>();
 
   for (const msg of session.leaderChats) {
@@ -1547,8 +1639,12 @@ export async function readPendingLeaderChatsResource(sessionId: string) {
       ideology: country?.ideology ?? t.unknownLabel,
       economy: country?.economy ?? 50,
       military: country?.military ?? 50,
+      nuclear_warheads: country?.nuclearWarheads ?? 0,
       relation_with_player: relation?.status ?? "NEUTRAL",
       treaty_name: relation?.treatyName ?? null,
+      treaty_nuclear_sharing_eligible:
+        isTreatyEligibleForNuclearSharing(relation) &&
+        (country?.nuclearWarheads ?? 0) > 1,
       awaiting_leader_reply: hasPendingReply,
       messages: msgs.slice(-15).map((m) => ({
         role: m.senderRole,
@@ -1567,6 +1663,7 @@ export async function readPendingLeaderChatsResource(sessionId: string) {
     currentDate: session.currentDate,
     turnNumber: session.turnNumber,
     playerCountryCode: session.playerCountryCode,
+    playerNuclearWarheads: playerCountry?.nuclearWarheads ?? 0,
     pendingThreadsCount: threads.filter((t) => t.awaiting_leader_reply).length,
     threads,
   };
@@ -1579,6 +1676,9 @@ export async function toolReplyLeaderChat(params: {
   reply_message: string;
   relation_status?: DiplomacyStatus;
   treaty_name?: string;
+  transfer_nuclear_warheads?: number;
+  nuclear_treaty_name?: string;
+  nuclear_require_treaty?: boolean;
 }) {
   const {
     sessionId,
@@ -1587,6 +1687,9 @@ export async function toolReplyLeaderChat(params: {
     reply_message,
     relation_status,
     treaty_name,
+    transfer_nuclear_warheads,
+    nuclear_treaty_name,
+    nuclear_require_treaty = true,
   } = params;
 
   const session = await prisma.gameSession.findUnique({
@@ -1634,16 +1737,35 @@ export async function toolReplyLeaderChat(params: {
     });
   }
 
+  let nuclearTransfer = null;
+  if (
+    transfer_nuclear_warheads &&
+    transfer_nuclear_warheads > 0 &&
+    session.playerCountryCode
+  ) {
+    nuclearTransfer = await transferNuclearWarheads({
+      sessionId,
+      fromCode: targetCode,
+      toCode: session.playerCountryCode,
+      count: transfer_nuclear_warheads,
+      treatyName: nuclear_treaty_name ?? treaty_name,
+      requireTreaty: nuclear_require_treaty,
+      skipAiWake: true,
+    });
+  }
+
   emitSessionEvent(sessionId, "leader_chat_reply", {
     countryCode: targetCode,
     message: created,
     updatedRelation,
+    nuclearTransfer,
   });
 
   const t = getMcpToolInstructions(getActiveMcpLocale(sessionId));
   return {
     message: created,
     updatedRelation,
+    nuclearTransfer,
     next_required_tool: "wait_for_player_action",
     instruction: t.replyLeaderChat,
   };

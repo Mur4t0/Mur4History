@@ -2,6 +2,7 @@
 
 import { useLocale } from "@/components/LanguageProvider";
 import { formatGameDateByLocale, getCountryDisplayName } from "@/lib/i18n";
+import { isTreatyEligibleForNuclearSharing } from "@/lib/nuclear-doctrine";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -11,6 +12,7 @@ import {
   Loader2,
   MessageSquare,
   Plus,
+  Radiation,
   Search,
   Send,
   Shield,
@@ -137,6 +139,10 @@ const QUICK_TOPICS = [
     tr: "Stratejik enerji ve savunma sanayii alanında gizli bir işbirliği zirvesi öneriyoruz.",
     en: "We propose a confidential summit on strategic energy and defense industrial cooperation.",
   },
+  {
+    tr: "Ortak savunma antlaşmamız kapsamında ülkemize 2 adet taktik nükleer başlık konuşlandırılmasını talep ediyoruz.",
+    en: "Under our mutual defense treaty umbrella, we request deploying 2 tactical nuclear warheads to bolster joint deterrence.",
+  },
 ];
 
 export function LeaderChatModal({
@@ -172,6 +178,9 @@ export function LeaderChatModal({
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [nukeCount, setNukeCount] = useState<number>(1);
+  const [nukeBusy, setNukeBusy] = useState(false);
+  const [nukeFeedback, setNukeFeedback] = useState<string | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -196,12 +205,16 @@ export function LeaderChatModal({
   }, [initialTab, open]);
 
   useEffect(() => {
-    if (initialTargetCode && initialTargetCode !== playerCountryCode) {
+    if (open && initialTargetCode && initialTargetCode !== playerCountryCode) {
       setSelectedCode(initialTargetCode);
-    } else if (!selectedCode && otherCountries[0]) {
+    }
+  }, [open, initialTargetCode, playerCountryCode]);
+
+  useEffect(() => {
+    if (!selectedCode && otherCountries[0]) {
       setSelectedCode(otherCountries[0].code);
     }
-  }, [initialTargetCode, playerCountryCode, otherCountries, selectedCode]);
+  }, [selectedCode, otherCountries]);
 
   useEffect(() => {
     if (!selectedCouncilId && councils[0]) {
@@ -265,14 +278,73 @@ export function LeaderChatModal({
     });
   }, [otherCountries, councilSearch, locale]);
 
-  const getRelationWithPlayer = (code: string) => {
-    if (!playerCountryCode) return "NEUTRAL";
-    const rel = diplomacies.find(
-      (d) =>
-        (d.countryA === playerCountryCode && d.countryB === code) ||
-        (d.countryB === playerCountryCode && d.countryA === code)
+  const getRelationRecordWithPlayer = (code: string) => {
+    if (!playerCountryCode) return null;
+    return (
+      diplomacies.find(
+        (d) =>
+          (d.countryA === playerCountryCode && d.countryB === code) ||
+          (d.countryB === playerCountryCode && d.countryA === code)
+      ) ?? null
     );
-    return rel?.status ?? "NEUTRAL";
+  };
+
+  const getRelationWithPlayer = (code: string) => {
+    return getRelationRecordWithPlayer(code)?.status ?? "NEUTRAL";
+  };
+
+  const playerCountry = playerCountryCode
+    ? countryByCode.get(playerCountryCode) ?? null
+    : null;
+  const playerWarheads = playerCountry?.nuclearWarheads ?? 0;
+  const activeRelationRecord = activeCountry
+    ? getRelationRecordWithPlayer(activeCountry.code)
+    : null;
+  const activeTreatyEligible =
+    isTreatyEligibleForNuclearSharing(activeRelationRecord);
+
+  useEffect(() => {
+    setNukeFeedback(null);
+  }, [selectedCode, open]);
+
+  const handleRequestNuclearSupport = async (
+    dispatch: "treaty_protocol" | "ai"
+  ) => {
+    if (!activeCountry || !playerCountryCode) return;
+    setError(null);
+    setNukeFeedback(null);
+    setNukeBusy(true);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/nuclear`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "request_sharing",
+          patronCode: activeCountry.code,
+          count: nukeCount,
+          customMessage: draft.trim() || undefined,
+          dispatch,
+          locale,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(
+          data.error ||
+            (isTr ? "Nükleer talep gönderilemedi." : "Nuclear request failed.")
+        );
+        return;
+      }
+      if (draft.trim()) setDraft("");
+      if (data.summary) setNukeFeedback(data.summary);
+      onMessageSent();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : isTr ? "Bağlantı hatası" : "Connection error"
+      );
+    } finally {
+      setNukeBusy(false);
+    }
   };
 
   const isWaitingForAi = threadMessages.some(
@@ -532,6 +604,11 @@ export function LeaderChatModal({
                               {msgs.length}
                             </span>
                           )}
+                          {(c.nuclearWarheads ?? 0) > 0 && (
+                            <span className="rounded bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-300">
+                              ☢️ {c.nuclearWarheads}
+                            </span>
+                          )}
                         </div>
                       </button>
                     );
@@ -572,6 +649,19 @@ export function LeaderChatModal({
                     </div>
 
                     <div className="flex items-center gap-3 font-mono text-[11px] text-muted-foreground">
+                      <span
+                        title={
+                          isTr ? "Nükleer Başlık Stoğu" : "Nuclear Warheads"
+                        }
+                        className={`flex items-center gap-1 ${
+                          (activeCountry.nuclearWarheads ?? 0) > 0
+                            ? "font-bold text-amber-300"
+                            : ""
+                        }`}
+                      >
+                        <Radiation className="h-3 w-3 text-amber-400" />
+                        {activeCountry.nuclearWarheads ?? 0}
+                      </span>
                       <span className="flex items-center gap-1">
                         <TrendingUp className="h-3 w-3 text-emerald-400" />
                         {activeCountry.economy}
@@ -673,6 +763,142 @@ export function LeaderChatModal({
                   </ScrollArea>
 
                   <div className="border-t border-border/70 bg-[#0d1420] p-3 space-y-2">
+                    {playerCountryCode &&
+                      ((activeCountry.nuclearWarheads ?? 0) > 0 ||
+                        playerWarheads > 0) && (
+                        <div
+                          data-testid="leader-nuclear-sharing-panel"
+                          className="rounded-lg border border-amber-500/35 bg-gradient-to-r from-amber-950/30 via-[#101828] to-[#0b111c] px-3 py-2 text-[11px] space-y-1.5"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5 font-semibold text-amber-300">
+                              <Radiation className="h-3.5 w-3.5 text-amber-400" />
+                              {isTr
+                                ? "Nükleer Silah & Antlaşma Desteği"
+                                : "Nuclear Sharing & Treaty Umbrella"}
+                            </span>
+                            <span className="font-mono text-[10px] text-slate-300">
+                              {isTr ? "Senin Stoğun" : "Yours"}:{" "}
+                              <strong className="text-amber-300">
+                                {playerWarheads}
+                              </strong>{" "}
+                              • {activeCountry.code}:{" "}
+                              <strong className="text-amber-300">
+                                {activeCountry.nuclearWarheads ?? 0}
+                              </strong>{" "}
+                              ☢️
+                            </span>
+                          </div>
+
+                          {(activeCountry.nuclearWarheads ?? 0) > 0 &&
+                            (activeTreatyEligible ? (
+                              <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                                <span className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300">
+                                  🛡️{" "}
+                                  {activeRelationRecord?.treatyName ??
+                                    activeRelationRecord?.status}
+                                </span>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <select
+                                    value={nukeCount}
+                                    onChange={(e) =>
+                                      setNukeCount(Number(e.target.value))
+                                    }
+                                    aria-label="Warhead count"
+                                    className="h-7 rounded border border-border bg-secondary px-1.5 font-mono text-[11px] text-foreground"
+                                  >
+                                    <option value={1}>
+                                      1 {isTr ? "Başlık" : "Warhead"}
+                                    </option>
+                                    <option value={2}>
+                                      2 {isTr ? "Başlık" : "Warheads"}
+                                    </option>
+                                    <option value={3}>
+                                      3 {isTr ? "Başlık" : "Warheads"}
+                                    </option>
+                                  </select>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    data-testid="request-nuclear-protocol-btn"
+                                    disabled={
+                                      nukeBusy ||
+                                      (activeCountry.nuclearWarheads ?? 0) <
+                                        nukeCount + 1
+                                    }
+                                    onClick={() =>
+                                      void handleRequestNuclearSupport(
+                                        "treaty_protocol"
+                                      )
+                                    }
+                                    className="h-7 bg-amber-600 px-2.5 text-[10px] font-semibold text-white hover:bg-amber-500"
+                                  >
+                                    {nukeBusy ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <Radiation className="h-3 w-3" />
+                                    )}
+                                    {isTr
+                                      ? "Antlaşmayla Başlık İste"
+                                      : "Request via Treaty"}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    data-testid="request-nuclear-ai-btn"
+                                    disabled={nukeBusy}
+                                    onClick={() =>
+                                      void handleRequestNuclearSupport("ai")
+                                    }
+                                    className="h-7 border-primary/45 px-2.5 text-[10px] text-primary hover:bg-primary/15"
+                                  >
+                                    <Sparkles className="h-3 w-3" />
+                                    {isTr
+                                      ? "AI Lidere Sor"
+                                      : "Ask Leader (AI)"}
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-amber-200/90">
+                                <span>
+                                  {isTr
+                                    ? "Nükleer destek istemek için önce bu ülkeyle İttifak / Savunma Antlaşması imzalamalısınız."
+                                    : "Sign an Alliance or Defense Umbrella treaty first to request nuclear warheads."}
+                                </span>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  data-testid="propose-nuclear-pact-btn"
+                                  onClick={() =>
+                                    setDraft(
+                                      isTr
+                                        ? `Sayın ${activeCountry.leader}, bölgesel caydırıcılık için aramızda resmi bir Savunma İttifakı ve Nükleer Şemsiye Antlaşması imzalamayı ve ardından ülkemize ${nukeCount} taktik nükleer başlık desteği sağlamanızı teklif ediyoruz.`
+                                        : `Dear ${activeCountry.leader}, we propose signing a formal Defense Alliance & Nuclear Umbrella Pact and deploying ${nukeCount} tactical nuclear warhead(s) under joint security.`
+                                    )
+                                  }
+                                  className="h-6 border-amber-500/45 px-2 text-[10px] text-amber-300 hover:bg-amber-500/15"
+                                >
+                                  {isTr
+                                    ? "İttifak & Nükleer Teklif Hazırla"
+                                    : "Draft Alliance & Nuke Pact"}
+                                </Button>
+                              </div>
+                            ))}
+
+                          {nukeFeedback && (
+                            <div
+                              data-testid="nuclear-request-feedback"
+                              className="rounded border border-emerald-500/35 bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-200"
+                            >
+                              {nukeFeedback}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                     <div className="flex flex-wrap gap-1.5">
                       {QUICK_TOPICS.map((topic, idx) => {
                         const topicText = isTr ? topic.tr : topic.en;
