@@ -1773,9 +1773,25 @@
 
     const UPDATES = [
       {
+        id: "instant-war-ai-wakeups",
+        cat: "platform",
+        latest: true,
+        ver: "v2.9",
+        commit: "e740ff6",
+        icon: "bolt",
+        trCat: "ANLIK AI TEPKİSİ & MCP KÖPRÜSÜ",
+        enCat: "INSTANT AI WAKEUPS & MCP SYNC",
+        trTitle: "Fetih, İsyan, Püskürtme & Barış Anında Tamponlu Anlık AI Uyandırma",
+        enTitle: "Instant Wartime AI Reactions (Buffered MCP Wakeups & Active Tab Sync)",
+        trWhat: "realtime.ts içine oturum bazlı pendingTriggers tampon kuyruğu eklendi; advanceLiveWarOperations (CAPTURED / REPELLED / UPRISING / AGITATED), Barış Konseyi anlaşmaları ve ateşkes sonuçları artık anında notifyPlayerAction('WAR_ACTION') ateşliyor. wait_for_player_action yanıtına doğrudan pendingWarEvents ve recentWarOutcomes eklendi ve mcp-stdio.mjs aktif tarayıcı sekmesine otomatik odaklanacak şekilde güncellendi.",
+        enWhat: "Added per-session pendingTriggers buffering in realtime.ts so war wakeups are never dropped when the AI is mid-turn or polling. Captures (CAPTURED), sieges repelled (REPELLED), uprisings (UPRISING), Peace Council treaties, and ceasefires now immediately wake the AI with recentWarOutcomes & waitWarActionInstruction, while mcp-stdio.mjs follows whichever game tab is active in your browser.",
+        trWhy: "Eskiden saldırı devam ederken AI uykuya dönüp bir eyaleti fethettiğinde 'Turu Tamamla' butonuna basana kadar tepkisiz kalabiliyordu; artık toprak düştüğü veya isyan çıktığı milisaniyede uyanıp NATO/müttefik tepkisi ve gazete manşeti üretir.",
+        enWhy: "Fixes silent conquests where AI stayed asleep in standby while cities fell mid-turn; the moment a province is captured or repelled, the AI wakes immediately with NATO/allied diplomacy and headlines without waiting for Complete Turn."
+      },
+      {
         id: "peace-council-difficulty-blocs",
         cat: "diplomacy",
-        latest: true,
+        latest: false,
         ver: "v2.8",
         commit: "3ec4d31",
         icon: "shield",
