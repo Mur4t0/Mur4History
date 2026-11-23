@@ -119,24 +119,29 @@ PART 2: FULL GAME OVERVIEW — WHAT IS MUR4HISTORY?
   * **Animated Map Landmarks**: Factories, military bases, shipyards, research hubs, infrastructure corridors, summits, and crises pulse visibly at exact cities/provinces.
   * **Diplomacy Hall**: Live 1-on-1 chats with world leaders AND multi-nation **Diplomatic Councils / Coalitions / Protests** when multiple states react to player actions.
   * **AI Strategy Advisor**: In-game brainstorm room where the player asks strategy questions and receives 1-click actionable \`suggested_orders\` cards without advancing the turn.
-  * **Smart World Gazette & Rollback**: Categorized headlines (\`LATEST\` / \`OLD\`), diplomatic cables, turn snapshots with full time-travel rollback, and portable \`.mur4history.json\` / browser IndexedDB save files.
+  * **Live War Room, Outbreak Radar & Animated Warfare**: War outbreak probability radar, provocations, instigating wars between 3rd-party nations, real-time animated infantry/tank/jet/naval sieges, and Live Auto-Battle.
+  * **Nuclear Arsenals & Treaty-Backed Sharing**: Era-calibrated nuclear warhead stockpiles (\`nuclearWarheads\`), 0-warhead launch lock, and bilateral leader negotiations to transfer nuclear warheads under active Defense Alliance / Umbrella treaties.
+  * **Smart World Gazette, Save Cloning & Rollback**: Categorized headlines (\`LATEST\` / \`OLD\`), diplomatic cables, 1-click campaign cloning, turn snapshots with time-travel rollback, and portable \`.mur4history.json\` / browser IndexedDB saves.
 
 ====================================================================
-PART 3: MCP RESOURCES, TOOLS & GAME MASTER RULES
+PART 3: 10 MCP RESOURCES, 18 TOOLS & GAME MASTER RULES
 ====================================================================
-- **9 Read-Only MCP Resources**:
-  \`world-state\`, \`countries\`, \`map-ownership\`, \`pending-orders\`, \`chronicle-history\`, \`pending-leader-chats\`, \`diplomatic-councils\`, \`map-markers\`, \`advisor-chat\`.
-- **12+ MCP Mutation & Orchestration Tools**:
-  * \`list_game_sessions\`, \`read_game_context\` — Inspect sessions and full active world state.
+- **10 Read-Only MCP Resources**:
+  \`world-state\`, \`countries\`, \`map-ownership\`, \`pending-orders\`, \`chronicle-history\`, \`pending-leader-chats\`, \`diplomatic-councils\`, \`map-markers\`, \`advisor-chat\`, \`war-theater\`.
+- **18 MCP Mutation & Orchestration Tools**:
+  * \`list_game_sessions\`, \`read_game_context\` — Inspect active or cloned sessions and full active world state.
   * \`transfer_territory\` — Annexations, peace treaties, occupations, land transfers (\`region_ids\`, \`new_owner_country_id\`, \`reason\`).
-  * \`update_country_stats\` — Adjust \`economy_delta\`, \`military_delta\`, \`stability_delta\`, \`infamy_delta\`, \`war_exhaustion_delta\`, \`new_ideology\`.
+  * \`update_country_stats\` — Adjust \`economy_delta\`, \`military_delta\`, \`stability_delta\`, \`infamy_delta\`, \`war_exhaustion_delta\`, \`nuclear_warheads_delta\`, \`new_ideology\`.
   * \`manage_diplomacy\` — Set \`WAR\`, \`ALLIANCE\`, \`NON_AGGRESSION\`, \`VASSAL\`, \`EMBARGO\`, or \`NEUTRAL\`.
   * \`manage_map_markers\` — Place/update/remove animated city/province landmarks (\`INDUSTRY\`, \`MILITARY\`, \`INFRASTRUCTURE\`, \`NAVAL\`, \`RESEARCH\`, \`DIPLOMACY\`, \`INTERNAL\`, \`CRISIS\`). ALWAYS add/update markers whenever construction, bases, summits, or battles happen!
   * \`publish_world_event\` — Publish 1–3 crisp grouped World Gazette articles per turn (never spam 10 tiny fragments).
-  * \`send_diplomatic_message\` & \`reply_leader_chat\` — Respond in character as foreign heads of state.
-  * \`convene_diplomatic_council\` & \`reply_diplomatic_council\` — Summon multi-nation protests/coalitions/summits when 2+ powers react to aggression or crises.
+  * \`send_diplomatic_message\` & \`reply_leader_chat\` — Respond in character as foreign heads of state (and optionally approve \`transfer_nuclear_warheads\` under active alliance treaties).
+  * \`convene_diplomatic_council\` & \`reply_diplomatic_council\` — Summon multi-nation protests/coalitions/summits from all 200+ countries when 2+ powers react to aggression or crises.
   * \`reply_advisor_chat\` — Answer questions in the AI Advisor room (can attach \`suggested_orders\`). **NEVER call \`advance_turn\` for advisor or leader chat replies!**
-  * \`advance_turn\` — Finalize turn, advance date, clear order queue, and save rollback snapshot (only when resolving an actual turn completion).
+  * \`provoke_country\` — Escalate tensions, border skirmishes, rebel sponsorship, or instigate wars between rival third-party nations.
+  * \`trigger_war_operation\` — Launch or advance animated infantry, armored tank, air strike, or naval sieges across provinces.
+  * \`launch_nuclear_strike\` & \`transfer_nuclear_warheads\` — Fire ICBM warheads (requires \`nuclear_warheads > 0\` and consumes 1) or share warheads under active Alliance treaties.
+  * \`advance_turn\` — Finalize turn, advance date, progress active battlefronts, clear order queue, and save rollback snapshot (only when resolving an actual turn completion).
   * \`wait_for_player_action\` — Always call with no timeout (\`timeout_seconds: 0\`) whenever you finish a turn/reply or have nothing pending. It stays asleep indefinitely with zero token burn until the player clicks an action in the UI!
 
 Begin setup now and report clearly once Mur4History MCP is active and standing by.`;
@@ -203,24 +208,29 @@ BÖLÜM 2: OYUNUN TAM TANITIMI — MUR4HISTORY NEDİR?
   * **Animasyonlu Harita Tesisleri & İşaretleri**: Şehir veya eyaletlerde kurulan fabrikalar, askeri üsler, tersaneler, AR-GE merkezleri, altyapı projeleri, zirveler ve kriz noktaları harita üzerinde canlı parlayan işaretçilerle gösterilir.
   * **Diplomasi Salonu & Çok Uluslu Konseyler**: Yabancı ülke başkanlarıyla 1'e 1 canlı mesajlaşma ve birden fazla ülkenin aynı kriz veya ittifak için toplandığı Çok Uluslu Konsey / Koalisyon / Protesto masaları bulunur.
   * **AI Strateji Danışmanı & Fikir Odası**: Oyuncu turu bitirmeden stratejik fikir sorabilir ve tek tıkla emir kutusuna aktarılabilen öneri kartları (\`suggested_orders\`) alır.
-  * **Akıllı Gazete, Kronoloji, Rollback & Kayıt Sistemi**: \`GÜNCEL\` / \`ESKİ\` damgalı gazete ve telgraf arşivi, turları geri alma (Zaman Yolculuğu), tarayıcı içi (IndexedDB) + \`.mur4history.json\` sürükle-bırak kayıt/içe aktarma sistemi.
+  * **Canlı Savaş Odası, Savaş Olasılığı Radarı & Animasyonlu Kuşatmalar**: Savaş çıkma olasılığı radarı, kışkırtmalar, 3. ülkeleri birbirine düşürme, haritada yürüyen piyade/tank/jet/donanma birlikleri ve Canlı Oto-Savaş.
+  * **Nükleer Başlık Stokları & Antlaşmalı Paylaşım**: Döneme göre gerçek nükleer envanter (\`nuclearWarheads\`), 0 başlıkla fırlatma kilidi ve İttifak / Savunma Antlaşması altındaki müttefik liderlerden sohbetle başlık talep etme.
+  * **Akıllı Gazete, Kronoloji, Klonlama & Kayıt Sistemi**: \`GÜNCEL\` / \`ESKİ\` damgalı gazete ve telgraf arşivi, tek tıkla save klonlama, turları geri alma (Zaman Yolculuğu), tarayıcı içi (IndexedDB) + \`.mur4history.json\` sürükle-bırak kayıt/içe aktarma sistemi.
 
 ====================================================================
-BÖLÜM 3: MCP KAYNAKLARI, ARAÇLARI & GAME MASTER KURALLARI
+BÖLÜM 3: 10 MCP KAYNAĞI, 18 ARAÇ & GAME MASTER KURALLARI
 ====================================================================
-- **9 Salt Okunur MCP Kaynağı (Resources)**:
-  \`world-state\`, \`countries\`, \`map-ownership\`, \`pending-orders\`, \`chronicle-history\`, \`pending-leader-chats\`, \`diplomatic-councils\`, \`map-markers\`, \`advisor-chat\`.
-- **12+ Canlı Dünya Yönetimi Aracı (Tools)**:
-  * \`list_game_sessions\`, \`read_game_context\`: Oturumları ve dünya durumunu okur.
+- **10 Salt Okunur MCP Kaynağı (Resources)**:
+  \`world-state\`, \`countries\`, \`map-ownership\`, \`pending-orders\`, \`chronicle-history\`, \`pending-leader-chats\`, \`diplomatic-councils\`, \`map-markers\`, \`advisor-chat\`, \`war-theater\`.
+- **18 Canlı Dünya Yönetimi Aracı (Tools)**:
+  * \`list_game_sessions\`, \`read_game_context\`: Oturumları (klonlar dahil) ve tam dünya durumunu okur.
   * \`transfer_territory\`: Savaş, ilhak veya barış antlaşması ile eyalet (\`region_ids\`) sahipliğini haritada canlı değiştirir.
-  * \`update_country_stats\`: Ekonomi, ordu, istikrar %, agresiflik (infamy), savaş yorgunluğu ve ideoloji günceller.
+  * \`update_country_stats\`: Ekonomi, ordu, istikrar %, agresiflik (infamy), savaş yorgunluğu, nükleer stok (\`nuclear_warheads_delta\`) ve ideoloji günceller.
   * \`manage_diplomacy\`: \`WAR\`, \`ALLIANCE\`, \`NON_AGGRESSION\`, \`VASSAL\`, \`EMBARGO\`, \`NEUTRAL\` statülerini işler.
   * \`manage_map_markers\`: Haritadaki şehir/eyalet tesislerini (\`INDUSTRY\`, \`MILITARY\`, \`INFRASTRUCTURE\`, \`NAVAL\`, \`RESEARCH\`, \`DIPLOMACY\`, \`INTERNAL\`, \`CRISIS\`) oluşturur, geliştirir veya kaldırır. İnşa/üs/zirve/çatışma kararlarında MUTLAKA kullan!
   * \`publish_world_event\`: Dünya Gazetesi'nde tur başına 1-3 toplu, net kategorili manşet yayınlar.
-  * \`send_diplomatic_message\` & \`reply_leader_chat\`: Yabancı devlet başkanları ağzından karakterine uygun yanıt verir.
-  * \`convene_diplomatic_council\` & \`reply_diplomatic_council\`: Oyuncunun hamlesi 2+ ülkeyi rahatsız ettiyse otomatik çok uluslu konsey/koalisyon kurup liderleri konuşturur.
+  * \`send_diplomatic_message\` & \`reply_leader_chat\`: Yabancı devlet başkanları ağzından yanıt verir; aktif ittifak antlaşması varsa \`transfer_nuclear_warheads\` parametresiyle başlık devredebilir.
+  * \`convene_diplomatic_council\` & \`reply_diplomatic_council\`: Oyuncunun hamlesi 2+ ülkeyi rahatsız ettiyse tüm 200+ ülke arasından çok uluslu konsey/koalisyon kurup liderleri konuşturur.
   * \`reply_advisor_chat\`: AI Danışman odasındaki soruları analiz + \`suggested_orders\` ile yanıtlar. **DİKKAT: Danışman veya lider sohbeti yanıtlarken \`advance_turn\` ÇAĞIRMA!**
-  * \`advance_turn\`: Yalnızca tur tamamlama emirleri işlendiğinde tarihi ilerletip snapshot alır.
+  * \`provoke_country\`: Sınır tacizi, isyancı desteği veya sahte bayrak ile gerilimi tırmandırıp üçüncü ülkeleri birbirine düşürür.
+  * \`trigger_war_operation\`: Harita üzerinde canlı yürüyen piyade/tank kuşatmaları, hava akını ve deniz çıkarması harekatlarını başlatır/ilerletir.
+  * \`launch_nuclear_strike\` & \`transfer_nuclear_warheads\`: Yalnızca \`nuclear_warheads > 0\` ise nükleer füze fırlatır (1 tüketir) veya antlaşmalı müttefike nükleer başlık devreder.
+  * \`advance_turn\`: Yalnızca tur tamamlama emirleri işlendiğinde tarihi ilerletip aktif cepheleri günceller ve snapshot alır.
   * \`wait_for_player_action\`: Her işlemden sonra veya bekleyen işlem yokken parametresiz (\`timeout_seconds: 0\`) çağır! Oyuncu bir şey yapana kadar sıfır gereksiz token harcamadan süresiz bekler; yeni aksiyon geldiği an uyanır.
 
 Şimdi lütfen kurulum adımlarını uygula, bağlantıyı kur ve bana hazır olduğunu bildir!`;
@@ -398,7 +408,7 @@ export function McpOnboardingHub({
               : "Rehberi & Ayarları Gizle"
             : isEn
               ? "Show MCP Tutorial & AI Prompt"
-              : "MCP Tutorial & AI Promptunu Aç"}
+              : "MCP Rehberi & AI Kurulum Promptunu Aç"}
           {showManualConfigs ? (
             <ChevronUp className="h-3.5 w-3.5" />
           ) : (
@@ -472,7 +482,7 @@ export function McpOnboardingHub({
                 </div>
                 <p className="mt-1 text-xs text-slate-300">
                   {isEn
-                    ? "Paste this single comprehensive prompt into any AI assistant: it instructs the AI how to configure Mur4History MCP automatically AND introduces all 12 scenarios, 270 provinces, 9 resources, 14 tools, and GM rules."
+                    ? "Paste this single comprehensive prompt into any AI assistant: it instructs the AI how to configure Mur4History MCP automatically AND introduces all 12 scenarios, 270 provinces, 10 resources, 18 tools, and GM rules."
                     : "Bu tek ve kapsamlı promptu doğrudan AI sohbetine yapıştır: yapay zekaya hem kendi MCP ayarını nasıl kuracağını adım adım yaptırır, hem de 12 senaryoyu, 270 eyaleti, 14 harita temasını, tüm MCP araçlarını ve Game Master kurallarını eksiksiz öğretir."}
                 </p>
               </div>

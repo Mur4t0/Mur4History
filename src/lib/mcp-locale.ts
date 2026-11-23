@@ -238,16 +238,17 @@ Player Country: ${worldState.playerCountryName ?? "Not selected yet"} (${worldSt
 Pending Orders Count: ${pendingOrdersCount ?? 0}${focusNote}
 
 MANDATORY GAME MASTER RULES:
-1. INSPECT RESOURCES FIRST: Before simulating, read these 9 MCP Resources (or call read_game_context):
+1. INSPECT RESOURCES FIRST: Before simulating, read these 10 MCP Resources (or call read_game_context):
    - game://session/${boundChannel}/world-state
    - game://session/${boundChannel}/countries
    - game://session/${boundChannel}/map-ownership
    - game://session/${boundChannel}/map-markers (factories, bases, shipyards, R&D hubs, crises on the map)
    - game://session/${boundChannel}/pending-orders
    - game://session/${boundChannel}/chronicle-history
-   - game://session/${boundChannel}/pending-leader-chats (direct 1-on-1 leader talks)
+   - game://session/${boundChannel}/pending-leader-chats (direct 1-on-1 leader talks & nuclear sharing eligibility)
    - game://session/${boundChannel}/diplomatic-councils (multi-nation councils & coalitions)
    - game://session/${boundChannel}/advisor-chat (player's AI Strategy Advisor brainstorm room)
+   - game://session/${boundChannel}/war-theater (live war probabilities, active sieges & battle fronts)
 
 2. DIPLOMACY & RESISTANCE BY DIFFICULTY:
    - Always calibrate treaty, alliance, territorial demand, and ultimatum acceptance strictly according to the active **Difficulty Mode** (${worldState.difficultyLabel}).
@@ -294,16 +295,17 @@ Oyuncu Ülkesi: ${worldState.playerCountryName ?? "Henüz seçilmedi"} (${worldS
 Bekleyen Emir Sayısı: ${pendingOrdersCount ?? 0}${focusNote}
 
 ZORUNLU OYUN YÖNETİM KURALLARI:
-1. ÖNCE KAYNAKLARI OKU: Simülasyona başlamadan önce mutlaka şu 9 MCP Resource'u oku:
+1. ÖNCE KAYNAKLARI OKU: Simülasyona başlamadan önce mutlaka şu 10 MCP Resource'u oku:
    - game://session/${boundChannel}/world-state
    - game://session/${boundChannel}/countries
    - game://session/${boundChannel}/map-ownership
    - game://session/${boundChannel}/map-markers (haritada kurulu fabrikalar, üsler ve yerel kriz noktaları)
    - game://session/${boundChannel}/pending-orders
    - game://session/${boundChannel}/chronicle-history
-   - game://session/${boundChannel}/pending-leader-chats (bire bir lider sohbetleri)
+   - game://session/${boundChannel}/pending-leader-chats (bire bir lider sohbetleri & nükleer paylaşım bilgisi)
    - game://session/${boundChannel}/diplomatic-councils (çok uluslu konseyler & koalisyon zirveleri)
    - game://session/${boundChannel}/advisor-chat (oyuncunun canlı AI Strateji & Fikir sohbeti)
+   - game://session/${boundChannel}/war-theater (savaş olasılıkları, canlı kuşatmalar & cephe durumları)
 
 2. ZORLUK MODUNA GÖRE DİPLOMASİ VE DİRENÇ:
    - Antlaşma, ittifak, toprak talebi ve ültimatomların kabul ihtimalini mutlaka aktif **Zorluk Modu** (${worldState.difficultyLabel}) kuralına göre belirle.

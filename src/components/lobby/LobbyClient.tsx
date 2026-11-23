@@ -11,12 +11,12 @@ import {
   Gamepad2,
   Globe,
   HardDrive,
+  Home,
   Infinity as InfinityIcon,
   Lock,
   Play,
   Plus,
   PlugZap,
-  Sparkles,
   Trash2,
   UploadCloud,
 } from "lucide-react";
@@ -664,6 +664,21 @@ export function LobbyClient({
           >
             <button
               type="button"
+              data-testid="nav-tab-welcome"
+              title={isEn ? "Go to Home / Welcome Screen" : "Ana Sayfaya / Giriş Ekranına Dön"}
+              onClick={() => switchTab("welcome")}
+              className={`inline-flex shrink-0 whitespace-nowrap cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium transition sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs ${
+                effectiveTab === "welcome"
+                  ? "border border-purple-400/35 bg-[#231238] text-white shadow-[0_0_16px_rgba(168,85,247,0.18)]"
+                  : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
+              }`}
+            >
+              <Home className="h-3.5 w-3.5" />
+              {isEn ? "Home" : "Ana Sayfa"}
+            </button>
+
+            <button
+              type="button"
               data-testid="nav-tab-games"
               title={
                 mcpConnected
@@ -673,7 +688,7 @@ export function LobbyClient({
                     : "Oyunlara girmek için önce MCP bağlayın"
               }
               onClick={() => switchTab("games")}
-              className={`inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium transition sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs ${
+              className={`inline-flex shrink-0 whitespace-nowrap cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium transition sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs ${
                 effectiveTab === "games"
                   ? "border border-purple-400/35 bg-[#231238] text-white shadow-[0_0_16px_rgba(168,85,247,0.18)]"
                   : !mcpConnected
@@ -705,7 +720,7 @@ export function LobbyClient({
                     : "Presetlere girmek için önce MCP bağlayın"
               }
               onClick={() => switchTab("presets")}
-              className={`inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium transition sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs ${
+              className={`inline-flex shrink-0 whitespace-nowrap cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium transition sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs ${
                 effectiveTab === "presets"
                   ? "border border-purple-400/35 bg-[#231238] text-white shadow-[0_0_16px_rgba(168,85,247,0.18)]"
                   : !mcpConnected
@@ -732,7 +747,7 @@ export function LobbyClient({
                     : "Kayıtlara girmek için önce MCP bağlayın"
               }
               onClick={() => switchTab("saves")}
-              className={`inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium transition sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs ${
+              className={`inline-flex shrink-0 whitespace-nowrap cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium transition sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs ${
                 effectiveTab === "saves"
                   ? "border border-purple-400/35 bg-[#231238] text-white shadow-[0_0_16px_rgba(168,85,247,0.18)]"
                   : !mcpConnected
@@ -764,7 +779,7 @@ export function LobbyClient({
                   ? "100% Free MCP Architecture — View live connection & tutorial"
                   : "%100 Ücretsiz MCP Mimarisi — Canlı bağlantı durumunu ve rehberi aç"
               }
-              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
+              className={`inline-flex shrink-0 whitespace-nowrap cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
                 mcpConnected
                   ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
                   : "border-amber-400/50 bg-amber-500/15 text-amber-200 hover:bg-amber-500/25"
@@ -786,18 +801,6 @@ export function LobbyClient({
                     ? "Connect MCP"
                     : "MCP Bekleniyor"}
               </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => switchTab("welcome")}
-              title={isEn ? "Welcome Screen" : "Karşılama Ekranı"}
-              className={`flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border transition ${
-                effectiveTab === "welcome"
-                  ? "border-purple-400/60 bg-purple-500/20 text-purple-200"
-                  : "border-white/15 bg-[#0c0f17] text-slate-400 hover:border-white/30 hover:text-white"
-              }`}
-            >
-              <Sparkles className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
