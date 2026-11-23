@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
+  Copy,
   Download,
   FolderUp,
   HardDrive,
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   type BrowserSaveEntry,
+  cloneBrowserSave,
   deleteBrowserSave,
   downloadArchiveAsFile,
   importArchiveToServer,
@@ -156,6 +158,31 @@ export function SaveManagerPanel({
           : isEn
             ? "Could not load browser save onto server."
             : "Tarayıcı kaydı sunucuya yüklenemedi."
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleCloneBrowserSave = async (entry: BrowserSaveEntry) => {
+    setErrorMessage(null);
+    setStatusMessage(null);
+    setBusyAction(`clone:${entry.id}`);
+    try {
+      const cloned = await cloneBrowserSave(entry, locale);
+      setBrowserSaves((prev) => [cloned, ...prev]);
+      setStatusMessage(
+        isEn
+          ? `Browser save cloned: "${cloned.label}"`
+          : `Tarayıcı kaydı klonlandı: "${cloned.label}"`
+      );
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : isEn
+            ? "Could not clone browser save."
+            : "Tarayıcı kaydı klonlanamadı."
       );
     } finally {
       setBusyAction(null);
@@ -427,6 +454,25 @@ export function SaveManagerPanel({
                         <Play className="h-3.5 w-3.5" />
                       )}
                       {isEn ? "Load" : "Yükle"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-testid="clone-browser-save-btn"
+                      disabled={busyAction !== null}
+                      title={
+                        isEn
+                          ? "Clone browser save"
+                          : "Tarayıcı kaydını klonla"
+                      }
+                      className="hover:border-emerald-500/50 hover:bg-emerald-500/15 hover:text-emerald-300"
+                      onClick={() => void handleCloneBrowserSave(entry)}
+                    >
+                      {busyAction === `clone:${entry.id}` ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
                     </Button>
                     <Button
                       size="sm"

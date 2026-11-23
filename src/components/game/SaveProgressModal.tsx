@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowRight,
   CheckCircle2,
+  Copy,
   Download,
   HardDrive,
   Loader2,
@@ -63,7 +65,13 @@ export function SaveProgressModal({
   )})`;
 
   const [saveLabel, setSaveLabel] = useState(defaultLabel);
-  const [busyMode, setBusyMode] = useState<"browser" | "download" | null>(null);
+  const [busyMode, setBusyMode] = useState<
+    "browser" | "download" | "clone" | null
+  >(null);
+  const [clonedSession, setClonedSession] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -71,15 +79,60 @@ export function SaveProgressModal({
   useEffect(() => {
     if (open) {
       setSaveLabel(defaultLabel);
+      setClonedSession(null);
       setFeedback(null);
       setError(null);
       setRefreshTrigger((n) => n + 1);
     }
   }, [open, defaultLabel]);
 
+  const handleCloneSession = async () => {
+    setError(null);
+    setFeedback(null);
+    setClonedSession(null);
+    setBusyMode("clone");
+    try {
+      const trimmedLabel = saveLabel.trim();
+      const customName =
+        trimmedLabel && trimmedLabel !== defaultLabel ? trimmedLabel : undefined;
+      const res = await fetch(`/api/sessions/${session.id}/clone`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(customName ? { name: customName } : {}),
+          locale,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.session?.id) {
+        throw new Error(
+          data?.error ||
+            (isEn ? "Could not clone save." : "Save klonlanamadı.")
+        );
+      }
+      setClonedSession({ id: data.session.id, name: data.session.name });
+      setFeedback(
+        isEn
+          ? `Save cloned into an independent campaign: "${data.session.name}"`
+          : `Mevcut kayıt bağımsız bir oyun olarak klonlandı: "${data.session.name}"`
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : isEn
+            ? "Could not clone save."
+            : "Save klonlanamadı."
+      );
+    } finally {
+      setBusyMode(null);
+    }
+  };
+
   const handleSaveToBrowser = async () => {
     setError(null);
     setFeedback(null);
+    setClonedSession(null);
     setBusyMode("browser");
     try {
       const archive = await fetchSessionArchive(session.id);
@@ -235,13 +288,46 @@ export function SaveProgressModal({
                 )}
                 {isEn ? "Download (.json)" : "PC'ye İndir (.json)"}
               </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                data-testid="clone-session-btn"
+                disabled={busyMode !== null}
+                onClick={() => void handleCloneSession()}
+                className="border-emerald-500/50 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+              >
+                {busyMode === "clone" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+                {isEn ? "Clone Save" : "Save'i Klonla"}
+              </Button>
             </div>
           </div>
 
           {feedback && (
-            <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-              <span>{feedback}</span>
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                <span>{feedback}</span>
+              </div>
+              {clonedSession && (
+                <Button
+                  type="button"
+                  size="sm"
+                  data-testid="open-cloned-session-btn"
+                  onClick={() => {
+                    onOpenChange(false);
+                    router.push(`/session/${clonedSession.id}`);
+                  }}
+                  className="h-7 bg-emerald-600 px-2.5 text-xs text-white hover:bg-emerald-500"
+                >
+                  {isEn ? "Open Clone" : "Klonu Aç"}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
           )}
 

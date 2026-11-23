@@ -6,6 +6,7 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
+  Copy,
   Download,
   Gamepad2,
   Globe,
@@ -359,6 +360,42 @@ export function LobbyClient({
     }
   };
 
+  const handleCloneSession = async (id: string) => {
+    setGamesError(null);
+    setGamesFeedback(null);
+    setSessionBusyId(`cl:${id}`);
+    try {
+      const res = await fetch(`/api/sessions/${id}/clone`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locale }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.session?.id) {
+        throw new Error(
+          data?.error ||
+            (isEn ? "Could not clone session." : "Oturum klonlanamadı.")
+        );
+      }
+      await refreshAll();
+      setGamesFeedback(
+        isEn
+          ? `Campaign cloned: "${data.session.name}"`
+          : `Oyun klonlandı: "${data.session.name}"`
+      );
+    } catch (err) {
+      setGamesError(
+        err instanceof Error
+          ? err.message
+          : isEn
+            ? "Could not clone session."
+            : "Oturum klonlanamadı."
+      );
+    } finally {
+      setSessionBusyId(null);
+    }
+  };
+
   const handleDeleteSession = async (id: string) => {
     setGamesError(null);
     await fetch(`/api/sessions/${id}`, { method: "DELETE" });
@@ -495,6 +532,20 @@ export function LobbyClient({
                 : "opacity-0 group-hover:opacity-100"
             }`}
           >
+            <button
+              type="button"
+              data-testid="clone-lobby-session-btn"
+              disabled={sessionBusyId !== null}
+              onClick={() => void handleCloneSession(s.id)}
+              className="cursor-pointer rounded-md border border-white/15 bg-black/80 p-1.5 text-emerald-300 backdrop-blur-md hover:bg-emerald-500/25 disabled:opacity-40"
+              title={isEn ? "Clone Save / Campaign" : "Kaydı Klonla"}
+            >
+              <Copy
+                className={`h-3.5 w-3.5 ${
+                  sessionBusyId === `cl:${s.id}` ? "animate-pulse" : ""
+                }`}
+              />
+            </button>
             <button
               type="button"
               disabled={sessionBusyId !== null}

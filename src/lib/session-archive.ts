@@ -1,7 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { getFullSessionState } from "@/lib/game-engine";
 import { DIFFICULTY_META } from "@/lib/utils";
-import type { Mur4SaveArchive } from "@/lib/save-schema";
+import {
+  formatCloneSessionName,
+  type Mur4SaveArchive,
+} from "@/lib/save-schema";
 
 const SQLITE_BATCH_SIZE = 200;
 
@@ -593,4 +596,20 @@ export async function importSessionArchive(
   }, { timeout: 20000 });
 
   return getFullSessionState(createdSessionId);
+}
+
+/** Deep-clone an existing game session into a new independent session record. */
+export async function cloneSessionArchive(
+  sessionId: string,
+  options?: { name?: string; locale?: "tr" | "en" }
+) {
+  const archive = await exportSessionArchive(sessionId);
+  const customName = options?.name?.trim();
+  const locale = options?.locale === "en" ? "en" : "tr";
+  const nextName =
+    customName && customName.length > 0
+      ? customName
+      : formatCloneSessionName(archive.session.name, locale);
+
+  return importSessionArchive(archive, nextName);
 }

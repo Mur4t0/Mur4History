@@ -559,6 +559,47 @@ async function run() {
     await fetch(`${BASE}/api/sessions/${importedId}`, { method: "DELETE" });
     console.log("Full Save Export & Import round-trip verified:", importedId);
 
+    const cloneRes1 = await fetch(`${BASE}/api/sessions/${sessionId}/clone`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locale: "tr" }),
+    });
+    assert.equal(cloneRes1.status, 201);
+    const cloneJson1 = await cloneRes1.json();
+    const clonedId1 = cloneJson1.session.id;
+    assert.notEqual(clonedId1, sessionId);
+    assert.ok(cloneJson1.session.name.endsWith("(Klon)"));
+    assert.equal(cloneJson1.session.turnNumber, 2);
+    assert.equal(cloneJson1.session.playerCountryCode, "TUR");
+    assert.equal(
+      cloneJson1.session.regions.length,
+      exportedArchive.regions.length
+    );
+    assert.ok(
+      (cloneJson1.session.warOperations ?? []).length >= 2,
+      "Expected warOperations cloned into duplicate session"
+    );
+    assert.ok(
+      cloneJson1.session.mapMarkers.some(
+        (m) => m.cityName === "Ankara" && m.level === 3
+      )
+    );
+
+    const cloneRes2 = await fetch(`${BASE}/api/sessions/${clonedId1}/clone`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locale: "tr" }),
+    });
+    assert.equal(cloneRes2.status, 201);
+    const cloneJson2 = await cloneRes2.json();
+    const clonedId2 = cloneJson2.session.id;
+    assert.notEqual(clonedId2, clonedId1);
+    assert.ok(cloneJson2.session.name.endsWith("(Klon 2)"));
+
+    await fetch(`${BASE}/api/sessions/${clonedId2}`, { method: "DELETE" });
+    await fetch(`${BASE}/api/sessions/${clonedId1}`, { method: "DELETE" });
+    console.log("1-Click Save Clone & incremented name verified:", clonedId1, clonedId2);
+
     console.log("=== 7. Testing Turn Rollback (Time Travel to Turn 1) ===");
     const afterTurnRes = await fetch(`${BASE}/api/sessions/${sessionId}`);
     const afterTurnJson = await afterTurnRes.json();

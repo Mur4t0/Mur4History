@@ -2,6 +2,7 @@
 
 import {
   buildSaveFilename,
+  formatCloneSessionName,
   type Mur4SaveArchive,
   SaveArchiveSchema,
 } from "@/lib/save-schema";
@@ -340,4 +341,28 @@ export async function importArchiveToServer(
     );
   }
   return { sessionId: data.session.id as string };
+}
+
+/** Duplicate an existing IndexedDB browser save into an independent new slot. */
+export async function cloneBrowserSave(
+  entry: BrowserSaveEntry,
+  locale: "tr" | "en" = "tr"
+): Promise<BrowserSaveEntry> {
+  const nextLabel = formatCloneSessionName(entry.label, locale);
+  const nextSessionName = formatCloneSessionName(
+    entry.archive.session.name || entry.label,
+    locale
+  );
+  const clonedArchive: Mur4SaveArchive = {
+    ...entry.archive,
+    meta: {
+      ...entry.archive.meta,
+      sessionName: nextSessionName,
+    },
+    session: {
+      ...entry.archive.session,
+      name: nextSessionName,
+    },
+  };
+  return saveArchiveToBrowser(clonedArchive, { label: nextLabel });
 }

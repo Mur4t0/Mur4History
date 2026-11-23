@@ -242,3 +242,20 @@ export function formatBytesTr(bytes: number): string {
   if (kb < 1024) return `${kb.toFixed(1)} KB`;
   return `${(kb / 1024).toFixed(2)} MB`;
 }
+
+/** Format an incremented "(Klon)" / "(Clone)" title when duplicating a session or save. */
+export function formatCloneSessionName(
+  sourceName: string,
+  locale: "tr" | "en" = "tr"
+): string {
+  const trimmed = sourceName.trim() || (locale === "en" ? "Campaign" : "Kayıt");
+  const match = trimmed.match(/^(.*?)\s*\((Klon|Clone)(?:\s+(\d+))?\)\s*$/i);
+  if (match) {
+    const root = match[1].trim() || trimmed;
+    const tag = match[2];
+    const nextNum = match[3] ? Number.parseInt(match[3], 10) + 1 : 2;
+    return `${root} (${tag} ${nextNum})`;
+  }
+  const suffix = locale === "en" ? "(Clone)" : "(Klon)";
+  return `${trimmed} ${suffix}`;
+}
