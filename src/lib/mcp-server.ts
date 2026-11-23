@@ -215,7 +215,7 @@ export function createGameMasterMcpServer(boundSessionId: string): McpServer {
                   languageDirective: getMcpLanguageDirective(locale),
                   sessionId: sid,
                   worldState,
-                  countriesSummary: countries.slice(0, 35),
+                  countriesSummary: countries,
                   pendingOrders: pendingOrders.pendingOrders,
                   pendingLeaderChats: leaderChats,
                   diplomaticCouncils: councils,

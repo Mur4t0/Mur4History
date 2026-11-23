@@ -184,6 +184,7 @@ export function LeaderChatModal({
   const [newTopic, setNewTopic] = useState("");
   const [newType, setNewType] = useState<"SUMMIT" | "COUNCIL" | "COALITION" | "PROTEST">("SUMMIT");
   const [invitedCodes, setInvitedCodes] = useState<string[]>([]);
+  const [councilSearch, setCouncilSearch] = useState("");
   const [newOpeningMsg, setNewOpeningMsg] = useState("");
   const [councilDraft, setCouncilDraft] = useState("");
 
@@ -228,18 +229,20 @@ export function LeaderChatModal({
     councilEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeCouncil?.messages.length, open, selectedCouncilId]);
 
+  const matchesCountryQuery = (c: CountryRecord, query: string) => {
+    if (!query) return true;
+    const localized = getCountryDisplayName(c.code, c.name, locale);
+    return (
+      c.name.toLowerCase().includes(query) ||
+      localized.toLowerCase().includes(query) ||
+      c.leader.toLowerCase().includes(query) ||
+      c.code.toLowerCase().includes(query)
+    );
+  };
+
   const filteredCountries = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = otherCountries.filter((c) => {
-      if (!q) return true;
-      const localized = getCountryDisplayName(c.code, c.name, locale);
-      return (
-        c.name.toLowerCase().includes(q) ||
-        localized.toLowerCase().includes(q) ||
-        c.leader.toLowerCase().includes(q) ||
-        c.code.toLowerCase().includes(q)
-      );
-    });
+    const list = otherCountries.filter((c) => matchesCountryQuery(c, q));
     return [...list].sort((a, b) => {
       const aCount = leaderChats.filter((m) => m.countryCode === a.code).length;
       const bCount = leaderChats.filter((m) => m.countryCode === b.code).length;
@@ -248,6 +251,19 @@ export function LeaderChatModal({
       return b.economy - a.economy;
     });
   }, [otherCountries, search, leaderChats, locale]);
+
+  const filteredCouncilCountries = useMemo(() => {
+    const q = councilSearch.trim().toLowerCase();
+    const list = otherCountries.filter((c) => matchesCountryQuery(c, q));
+    return [...list].sort((a, b) => {
+      if (a.isMajor !== b.isMajor) return a.isMajor ? -1 : 1;
+      if (a.economy !== b.economy) return b.economy - a.economy;
+      return getCountryDisplayName(a.code, a.name, locale).localeCompare(
+        getCountryDisplayName(b.code, b.name, locale),
+        locale
+      );
+    });
+  }, [otherCountries, councilSearch, locale]);
 
   const getRelationWithPlayer = (code: string) => {
     if (!playerCountryCode) return "NEUTRAL";
@@ -344,6 +360,7 @@ export function LeaderChatModal({
       setNewTopic("");
       setNewOpeningMsg("");
       setInvitedCodes([]);
+      setCouncilSearch("");
       if (data.council?.id) setSelectedCouncilId(data.council.id);
       onMessageSent();
     } finally {
@@ -776,7 +793,7 @@ export function LeaderChatModal({
                             {cn.title}
                           </div>
                           <div className="mt-1 flex flex-wrap gap-1">
-                            {cn.participantCodes.map((code) => (
+                            {cn.participantCodes.slice(0, 8).map((code) => (
                               <span
                                 key={code}
                                 className="rounded bg-secondary px-1.5 py-0.5 text-[10px]"
@@ -784,6 +801,11 @@ export function LeaderChatModal({
                                 {countryByCode.get(code)?.flagEmoji ?? "🏳️"} {code}
                               </span>
                             ))}
+                            {cn.participantCodes.length > 8 && (
+                              <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                                +{cn.participantCodes.length - 8}
+                              </span>
+                            )}
                           </div>
                         </button>
                       );
@@ -880,38 +902,116 @@ export function LeaderChatModal({
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-[11px] text-muted-foreground">
-                        {isTr
-                          ? `Davet Edilecek Ülkeler (Seçili: ${invitedCodes.length})`
-                          : `Nations to Invite (Selected: ${invitedCodes.length})`}
-                      </label>
-                      <div className="grid max-h-40 grid-cols-2 gap-1.5 overflow-y-auto rounded-lg border border-border bg-secondary/20 p-2 sm:grid-cols-3">
-                        {otherCountries.slice(0, 36).map((c) => {
-                          const checked = invitedCodes.includes(c.code);
-                          return (
+                      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                        <label className="block text-[11px] text-muted-foreground">
+                          {isTr
+                            ? `Davet Edilecek Ülkeler (Seçili: ${invitedCodes.length} / ${otherCountries.length})`
+                            : `Nations to Invite (Selected: ${invitedCodes.length} / ${otherCountries.length})`}
+                        </label>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const major = otherCountries
+                                .filter((c) => c.isMajor)
+                                .map((c) => c.code);
+                              setInvitedCodes((prev) =>
+                                Array.from(new Set([...prev, ...major]))
+                              );
+                            }}
+                            className="rounded border border-border/70 bg-secondary/50 px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:border-primary/50 hover:text-foreground cursor-pointer"
+                          >
+                            {isTr ? "Büyük Güçleri Ekle" : "Add Major Powers"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const visibleCodes = filteredCouncilCountries.map(
+                                (c) => c.code
+                              );
+                              setInvitedCodes((prev) =>
+                                Array.from(new Set([...prev, ...visibleCodes]))
+                              );
+                            }}
+                            className="rounded border border-border/70 bg-secondary/50 px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:border-primary/50 hover:text-foreground cursor-pointer"
+                          >
+                            {councilSearch.trim()
+                              ? isTr
+                                ? `Filtrelenenleri Seç (${filteredCouncilCountries.length})`
+                                : `Select Matching (${filteredCouncilCountries.length})`
+                              : isTr
+                                ? `Tümünü Seç (${otherCountries.length})`
+                                : `Select All (${otherCountries.length})`}
+                          </button>
+                          {invitedCodes.length > 0 && (
                             <button
-                              key={c.code}
                               type="button"
-                              onClick={() =>
-                                setInvitedCodes((prev) =>
-                                  checked
-                                    ? prev.filter((x) => x !== c.code)
-                                    : [...prev, c.code]
-                                )
-                              }
-                              className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-left text-[11px] cursor-pointer ${
-                                checked
-                                  ? "border-primary bg-primary/20 text-foreground"
-                                  : "border-border/50 text-muted-foreground hover:text-foreground"
-                              }`}
+                              onClick={() => setInvitedCodes([])}
+                              className="rounded border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[10px] font-medium text-rose-300 hover:bg-rose-500/20 cursor-pointer"
                             >
-                              <span>{c.flagEmoji}</span>
-                              <span className="truncate">
-                                {getCountryDisplayName(c.code, c.name, locale)}
-                              </span>
+                              {isTr ? "Temizle" : "Clear"}
                             </button>
-                          );
-                        })}
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="relative mb-2">
+                        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input
+                          value={councilSearch}
+                          onChange={(e) => setCouncilSearch(e.target.value)}
+                          placeholder={
+                            isTr
+                              ? `Tüm ülkelerde ara (${otherCountries.length} ülke: ad, lider veya kod)...`
+                              : `Search all ${otherCountries.length} nations (name, leader, or code)...`
+                          }
+                          className="h-8 pl-8 text-xs"
+                        />
+                      </div>
+
+                      <div
+                        data-testid="council-country-picker"
+                        className="grid max-h-56 grid-cols-2 gap-1.5 overflow-y-auto rounded-lg border border-border bg-secondary/20 p-2 sm:grid-cols-3"
+                      >
+                        {filteredCouncilCountries.length === 0 ? (
+                          <div className="col-span-full py-4 text-center text-xs text-muted-foreground">
+                            {isTr
+                              ? "Aramayla eşleşen ülke bulunamadı."
+                              : "No matching countries found."}
+                          </div>
+                        ) : (
+                          filteredCouncilCountries.map((c) => {
+                            const checked = invitedCodes.includes(c.code);
+                            return (
+                              <button
+                                key={c.code}
+                                type="button"
+                                onClick={() =>
+                                  setInvitedCodes((prev) =>
+                                    checked
+                                      ? prev.filter((x) => x !== c.code)
+                                      : [...prev, c.code]
+                                  )
+                                }
+                                className={`flex items-center justify-between gap-1.5 rounded-md border px-2 py-1.5 text-left text-[11px] cursor-pointer ${
+                                  checked
+                                    ? "border-primary bg-primary/20 text-foreground"
+                                    : "border-border/50 text-muted-foreground hover:text-foreground"
+                                }`}
+                              >
+                                <span className="flex min-w-0 items-center gap-1.5">
+                                  <span className="shrink-0">{c.flagEmoji}</span>
+                                  <span className="truncate">
+                                    {getCountryDisplayName(c.code, c.name, locale)}
+                                  </span>
+                                </span>
+                                <span className="shrink-0 font-mono text-[9px] opacity-60">
+                                  {c.code}
+                                </span>
+                              </button>
+                            );
+                          })
+                        )}
                       </div>
                     </div>
 
@@ -981,7 +1081,7 @@ export function LeaderChatModal({
                           activeCouncil.status}
                       </Badge>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
+                    <div className="mt-2 max-h-24 overflow-y-auto pr-1 flex flex-wrap gap-1.5">
                       {activeCouncil.participantCodes.map((code) => {
                         const c = countryByCode.get(code);
                         return (
