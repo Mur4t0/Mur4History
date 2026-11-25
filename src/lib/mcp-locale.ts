@@ -470,9 +470,9 @@ export function getMcpRegistryMetadata(locale: AppLocale): McpRegistryMeta {
             "Holds the MCP connection open INDEFINITELY at zero idle tokens until the player clicks Complete Turn, Leader Send, Council Send, or AI Advisor in the UI, returning full context immediately.",
         },
         manage_map_markers: {
-          title: "Manage Map Facilities, Landmarks & Animated Beacons",
+          title: "Manage Map Facilities, Landmarks & Smart Marker Cleanup",
           description:
-            "Creates, updates, or removes animated city/region facilities (factories, military bases, shipyards, R&D hubs, summits, crises) on the map.",
+            "Creates, updates, or removes city/region facilities on the map, or runs CLEANUP_STALE to keep strategic facilities (INDUSTRY, MILITARY, INFRASTRUCTURE, NAVAL, RESEARCH) while removing stale war/crisis debris.",
         },
         reply_advisor_chat: {
           title: "Reply to Player in AI Strategy Advisor & Brainstorm Chat",
@@ -480,14 +480,14 @@ export function getMcpRegistryMetadata(locale: AppLocale): McpRegistryMeta {
             "Replies to player questions in the Strategy Advisor / War Room and optionally attaches one-click suggested_orders cards (do NOT call advance_turn).",
         },
         provoke_country: {
-          title: "Provoke Nation / Send Covert Envoys / Incite War",
+          title: "Declare War / Send Covert Envoys / Provoke Nation",
           description:
-            "Escalates bilateral tension via border skirmishes, insults, false-flag instigation, or SPONSOR_REBELS (sends covert envoys to agitate populace, lower stability, and spark internal uprisings WITHOUT annexing land).",
+            "Declares formal war (DECLARE_WAR, requiring 1 turn of mobilization before siege armies can advance), runs border skirmishes, incites 3rd-party wars, or sends covert envoys (SPONSOR_REBELS).",
         },
         trigger_war_operation: {
           title: "Launch or Advance Animated Siege / Covert Operation",
           description:
-            "Deploys animated marching infantry, armored tank blitz, air strikes, naval invasions, covert envoy agitation (ENVOY_AGITATION), or internal popular uprisings (REBEL_UPRISING) on the live world map.",
+            "Deploys animated marching infantry, armored tank blitz, air strikes, or naval invasions (REQUIRES active WAR declared >= 1 turn prior!), plus covert envoys (ENVOY_AGITATION) or internal uprisings (REBEL_UPRISING).",
         },
         launch_nuclear_strike: {
           title: "Launch Strategic Nuclear Strike",
@@ -623,9 +623,9 @@ export function getMcpRegistryMetadata(locale: AppLocale): McpRegistryMeta {
           "MCP bağlantısını açık tutarak oyuncunun web arayüzünde 'Turu Tamamla', 'Başkana Gönder', 'Konseye Gönder' veya 'AI Danışman' butonuna basmasını SÜRESİZ bekler.",
       },
       manage_map_markers: {
-        title: "Manage Map Facilities, Landmarks & Animated Beacons",
+        title: "Harita Tesislerini Yönet & Akıllı İşaret Temizliği",
         description:
-          "Haritada şehir veya eyalette kurulan fabrika, askeri üs, tersane, demiryolu, zirve veya kriz noktasını animasyonlu nokta olarak yönetir.",
+          "Haritada şehir/eyalet tesislerini yönetir; CLEANUP_STALE aksiyonuyla fabrika, askeri üs, altyapı ve Ar-Ge tesislerini koruyarak birikmiş savaş/kriz kalıntılarını tek hamlede temizler.",
       },
       reply_advisor_chat: {
         title: "Reply to Player in AI Strategy Advisor & Brainstorm Chat",
@@ -633,14 +633,14 @@ export function getMcpRegistryMetadata(locale: AppLocale): McpRegistryMeta {
           "Oyuncunun Strateji Danışmanı / Fikir Odası'nda sorduğu sorulara yanıt ve tek tıkla emir öneri kartları (suggested_orders) sunar (turu ilerletmez).",
       },
       provoke_country: {
-        title: "Ülke Kışkırt / Gizli Elçi & Halk İsyanı / Üçüncü Ülke Savaşı",
+        title: "Savaş İlan Et / Gizli Elçi & Halk İsyanı / Kışkırtma",
         description:
-          "Sınır tacizi, diplomatik hakaret, sahte bayrak operasyonu veya SPONSOR_REBELS (gizli elçi gönderip halkı kışkırtarak istikrarı düşürür ve toprak ilhakı yapmadan iç isyan çıkarır) uygular.",
+          "Resmi savaş ilanı (DECLARE_WAR — ordu sevkiyatı için ilan sonrası 1 tur seferberlik gerekir), sınır tacizi, 3. ülke savaşı veya SPONSOR_REBELS (gizli elçi & iç isyan) başlatır.",
       },
       trigger_war_operation: {
         title: "Canlı Animasyonlu Kuşatma / Elçi Sızması Başlat",
         description:
-          "Haritada hedef eyalete yürüyen askerler, zırhlı tank birlikleri, hava akını, deniz çıkarması, gizli elçi kışkırtması (ENVOY_AGITATION) veya halk ayaklanması (REBEL_UPRISING) başlatır/ilerletir.",
+          "Haritada piyade/tank/hava/deniz taarruzu (en az 1 tur önce ilan edilmiş WAR durumu gerektirir!) veya gizli elçi (ENVOY_AGITATION) / halk ayaklanması (REBEL_UPRISING) başlatır ve ilerletir.",
       },
       launch_nuclear_strike: {
         title: "Stratejik Nükleer Saldırı Düzenle",

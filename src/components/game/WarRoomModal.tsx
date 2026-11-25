@@ -20,6 +20,7 @@ import { useLocale } from "@/components/LanguageProvider";
 import { getCountryDisplayName } from "@/lib/i18n";
 import { findNuclearPartners } from "@/lib/nuclear-doctrine";
 import {
+  evaluateWarAttackReadiness,
   getCountryBlocsAndPacts,
   getWarDifficultyProfile,
 } from "@/lib/geopolitics";
@@ -72,6 +73,7 @@ interface WarRoomModalProps {
   onOpenPeaceCouncil?: (councilId: string) => void;
   scenarioKey?: string | null;
   currentDate?: string | null;
+  currentTurn?: number;
   difficulty?: string | null;
 }
 
@@ -118,6 +120,7 @@ export function WarRoomModal({
   onOpenPeaceCouncil,
   scenarioKey,
   currentDate,
+  currentTurn = 1,
   difficulty,
 }: WarRoomModalProps) {
   const { locale } = useLocale();
@@ -220,6 +223,35 @@ export function WarRoomModal({
     [warOperations]
   );
 
+  const defenderCountry = countryByCode.get(defenderCode);
+  const attackerRelationWithDefender = useMemo(
+    () =>
+      diplomacies.find(
+        (d) =>
+          (d.countryA === attackerCode && d.countryB === defenderCode) ||
+          (d.countryB === attackerCode && d.countryA === defenderCode)
+      ) ?? null,
+    [diplomacies, attackerCode, defenderCode]
+  );
+
+  const isConventionalAttackOp =
+    opType !== "NUCLEAR_STRIKE" &&
+    opType !== "ENVOY_AGITATION" &&
+    opType !== "REBEL_UPRISING";
+
+  const launchWarReadiness = useMemo(
+    () =>
+      evaluateWarAttackReadiness({
+        currentTurn,
+        relation: attackerRelationWithDefender,
+        targetName: defenderCountry
+          ? getCountryDisplayName(defenderCountry.code, defenderCountry.name, locale)
+          : defenderCode,
+        locale,
+      }),
+    [currentTurn, attackerRelationWithDefender, defenderCountry, defenderCode, locale]
+  );
+
   const meddlePairRisk = useMemo(() => {
     const hotspot = warHotspots.find(
       (h) =>
@@ -283,28 +315,42 @@ export function WarRoomModal({
 
     const isCovertOp =
       opType === "REBEL_UPRISING" || opType === "ENVOY_AGITATION";
+    if (isCovertOp) {
+      await callWarApi({
+        mode: "provoke",
+        actorCode: attackerCode,
+        targetCode: defenderCode,
+        actionType: "SPONSOR_REBELS",
+        targetRegionId: targetRegionId === "AUTO" ? undefined : targetRegionId,
+      });
+      return;
+    }
+
+    if (launchWarReadiness.reasonCode === "NO_WAR_DECLARED") {
+      await callWarApi({
+        mode: "provoke",
+        actorCode: attackerCode,
+        targetCode: defenderCode,
+        actionType: "DECLARE_WAR",
+        targetRegionId: targetRegionId === "AUTO" ? undefined : targetRegionId,
+      });
+      return;
+    }
+
     const res = await callWarApi({
       mode: "launch_operation",
       attackerCode,
       defenderCode,
       targetRegionId: targetRegionId === "AUTO" ? undefined : targetRegionId,
       operationType: opType,
-      intensity: opType === "ENVOY_AGITATION" ? 50 : 78,
-      autoDeclareWar: !isCovertOp,
+      intensity: 78,
+      autoDeclareWar: false,
     });
     if (res) {
       setFeedback(
-        opType === "ENVOY_AGITATION"
-          ? isTr
-            ? `${attackerCode} gizli elçileri ${defenderCode} halkını kışkırtmak üzere yola çıktı (toprak ilhak etmez).`
-            : `${attackerCode} covert envoys deployed to agitate citizens inside ${defenderCode} (does not annex territory).`
-          : opType === "REBEL_UPRISING"
-            ? isTr
-              ? `${defenderCode} içinde halk ayaklanması tetiklendi — bölge statüsü çekişmeli hale getirilecek (toprak ilhak etmez).`
-              : `Internal uprising ignited inside ${defenderCode} (destabilizes regime without annexing land).`
-            : isTr
-              ? `${attackerCode} birlikleri haritada ${defenderCode} hedefine doğru harekete geçti!`
-              : `${attackerCode} units deployed toward ${defenderCode} on the live map!`
+        isTr
+          ? `${attackerCode} birlikleri haritada ${defenderCode} hedefine doğru harekete geçti!`
+          : `${attackerCode} units deployed toward ${defenderCode} on the live map!`
       );
     }
   };
@@ -588,13 +634,8 @@ export function WarRoomModal({
                           </SelectItem>
                           <SelectItem value="ENVOY_AGITATION">
                             {isTr
-                              ? "Gizli Elçi Gönder & Halkı Kışkırt (Toprak Almaz)"
-                              : "Send Covert Envoys & Agitate Citizens (No Annex)"}
-                          </SelectItem>
-                          <SelectItem value="REBEL_UPRISING">
-                            {isTr
-                              ? "Halk Ayaklanması Çıkar (İç İsyan — Toprak Almaz)"
-                              : "Ignite Popular Uprising (Internal Revolt — No Annex)"}
+                              ? "Gizli Elçi Gönder & İsyan Hazırla (Zorluğa Göre)"
+                              : "Deploy Covert Envoys & Spark Uprising (Difficulty-Scaled)"}
                           </SelectItem>
                           <SelectItem value="NUCLEAR_STRIKE">
                             {attackerWarheads > 0
@@ -685,6 +726,19 @@ export function WarRoomModal({
                     </div>
                   )}
 
+                  {isConventionalAttackOp && !launchWarReadiness.ready && (
+                    <div
+                      data-testid="warroom-mobilization-notice"
+                      className={`rounded-lg border px-3 py-2 text-xs ${
+                        launchWarReadiness.reasonCode === "NO_WAR_DECLARED"
+                          ? "border-rose-500/45 bg-rose-950/25 text-rose-200"
+                          : "border-amber-500/45 bg-amber-950/25 text-amber-200"
+                      }`}
+                    >
+                      {launchWarReadiness.message}
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
                     {confirmNuke && opType === "NUCLEAR_STRIKE" ? (
                       <>
@@ -718,10 +772,22 @@ export function WarRoomModal({
                           (opType === "NUCLEAR_STRIKE" && attackerWarheads <= 0)
                         }
                         onClick={handleLaunchOperation}
+                        data-testid={
+                          isConventionalAttackOp &&
+                          launchWarReadiness.reasonCode === "NO_WAR_DECLARED"
+                            ? "warroom-declare-war-btn"
+                            : "warroom-launch-op-btn"
+                        }
                         className={
                           opType === "NUCLEAR_STRIKE"
                             ? "bg-red-600 text-white hover:bg-red-500 disabled:opacity-45"
-                            : ""
+                            : isConventionalAttackOp &&
+                                launchWarReadiness.reasonCode === "NO_WAR_DECLARED"
+                              ? "bg-rose-600 text-white hover:bg-rose-500"
+                              : isConventionalAttackOp &&
+                                  launchWarReadiness.reasonCode === "MOBILIZING"
+                                ? "bg-amber-600/80 text-white hover:bg-amber-500"
+                                : ""
                         }
                       >
                         {opType === "NUCLEAR_STRIKE" ? (
@@ -733,17 +799,22 @@ export function WarRoomModal({
                           ? isTr
                             ? "Nükleer Saldırı Başlat"
                             : "Launch Nuclear Strike"
-                          : opType === "ENVOY_AGITATION"
+                          : opType === "ENVOY_AGITATION" ||
+                              opType === "REBEL_UPRISING"
                             ? isTr
                               ? "Gizli Elçileri Gönder"
                               : "Dispatch Covert Envoys"
-                            : opType === "REBEL_UPRISING"
+                            : launchWarReadiness.reasonCode === "NO_WAR_DECLARED"
                               ? isTr
-                                ? "Halk Ayaklanması Çıkar"
-                                : "Ignite Popular Uprising"
-                              : isTr
-                                ? "Birlikleri Haritada Yürüt!"
-                                : "Deploy Units on Map!"}
+                                ? "Önce Savaş İlan Et (Seferberlik)"
+                                : "Declare War First (Mobilize)"
+                              : launchWarReadiness.reasonCode === "MOBILIZING"
+                                ? isTr
+                                  ? `Seferberlik Sürüyor (Tur ${launchWarReadiness.unlockTurn})`
+                                  : `Mobilizing (Wait Turn ${launchWarReadiness.unlockTurn})`
+                                : isTr
+                                  ? "Birlikleri Haritada Yürüt!"
+                                  : "Deploy Units on Map!"}
                       </Button>
                     )}
                   </div>

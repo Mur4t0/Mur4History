@@ -309,7 +309,7 @@ export async function createSessionFromScenario(
         countryB: b,
         status: dip.status,
         treatyName: dip.treatyName ?? null,
-        updatedTurn: 1,
+        updatedTurn: dip.status === "WAR" ? 0 : 1,
       });
     }
     if (diplomacyRows.length > 0) {
@@ -1085,13 +1085,18 @@ export async function toolManageDiplomacy(params: {
             ? 14
             : 22;
 
+  const nextUpdatedTurn =
+    existing?.status === "WAR" && relation_status === "WAR"
+      ? existing.updatedTurn
+      : session.turnNumber;
+
   const relation = await prisma.diplomacyRelation.upsert({
     where: { sessionId_countryA_countryB: { sessionId, countryA: a, countryB: b } },
     update: {
       status: relation_status,
       tension: relationTension,
       treatyName: treaty_name?.trim() || null,
-      updatedTurn: session.turnNumber,
+      updatedTurn: nextUpdatedTurn,
     },
     create: {
       sessionId,
@@ -1100,7 +1105,7 @@ export async function toolManageDiplomacy(params: {
       status: relation_status,
       tension: relationTension,
       treatyName: treaty_name?.trim() || null,
-      updatedTurn: session.turnNumber,
+      updatedTurn: nextUpdatedTurn,
     },
   });
 
@@ -1131,17 +1136,8 @@ export async function toolManageDiplomacy(params: {
         data: { infamy: clamp(attacker.infamy + 10, 0, 100) },
       });
     }
-    // Auto-launch animated frontier offensive on war declaration
-    await launchWarOperation({
-      sessionId,
-      attackerCode: codeA,
-      defenderCode: codeB,
-      operationType: "TANK_BLITZ",
-      unitType: "ARMOR",
-      intensity: 78,
-      autoDeclareWar: false,
-      skipAiWake: true,
-    }).catch(() => undefined);
+    // Note: Formal war declaration enters mobilization phase on the current turn;
+    // offensive troops can march on Turn N+1 (session.turnNumber + 1).
   } else if (
     (relation_status === "ALLIANCE" ||
       relation_status === "NON_AGGRESSION" ||
@@ -2261,9 +2257,141 @@ export async function readMapMarkersResource(sessionId: string) {
   };
 }
 
+const STRATEGIC_MARKER_CATEGORIES = new Set([
+  "INDUSTRY",
+  "MILITARY",
+  "INFRASTRUCTURE",
+  "NAVAL",
+  "RESEARCH",
+]);
+
+export async function cleanStaleMapMarkers(params: {
+  sessionId: string;
+  countryCode?: string;
+  aggressive?: boolean;
+}) {
+  const { sessionId, countryCode, aggressive = false } = params;
+  const locale = getActiveMcpLocale(sessionId);
+  const isTr = locale === "tr";
+
+  const [session, markers, activeOps] = await Promise.all([
+    prisma.gameSession.findUnique({ where: { id: sessionId } }),
+    prisma.mapMarker.findMany({
+      where: {
+        sessionId,
+        ...(countryCode ? { countryCode: countryCode.trim().toUpperCase() } : {}),
+      },
+      orderBy: [{ level: "desc" }, { turnNumber: "desc" }, { createdAt: "desc" }],
+    }),
+    prisma.warOperation.findMany({
+      where: {
+        sessionId,
+        status: { in: ["MARCHING", "BESIEGING", "ACTIVE"] },
+      },
+      select: { targetRegionId: true, operationType: true },
+    }),
+  ]);
+
+  if (!session) throw new Error(`Oturum bulunamadı: ${sessionId}`);
+
+  const liveBattleRegions = new Set(activeOps.map((op) => op.targetRegionId));
+  const seenStrategicKeys = new Set<string>();
+  const toRemove: typeof markers = [];
+  const toKeep: typeof markers = [];
+
+  for (const m of markers) {
+    const isStrategic = STRATEGIC_MARKER_CATEGORIES.has(m.category);
+    if (isStrategic) {
+      const dedupKey = `${m.countryCode}::${m.regionId ?? m.cityName ?? ""}::${m.category}::${m.title.trim().toLowerCase()}`;
+      if (m.status === "DAMAGED" && seenStrategicKeys.has(dedupKey)) {
+        toRemove.push(m);
+        continue;
+      }
+      if (seenStrategicKeys.has(dedupKey)) {
+        toRemove.push(m);
+        continue;
+      }
+      seenStrategicKeys.add(dedupKey);
+      toKeep.push(m);
+      continue;
+    }
+
+    // Non-strategic pins: CRISIS, DIPLOMACY, INTERNAL
+    if (m.category === "CRISIS") {
+      // Preserve single warning pin ONLY if a live military/envoy battle is still actively raging in that region (unless aggressive)
+      const hasLiveFront = Boolean(m.regionId && liveBattleRegions.has(m.regionId));
+      if (!aggressive && hasLiveFront) {
+        const crisisKey = `CRISIS::${m.regionId}`;
+        if (!seenStrategicKeys.has(crisisKey)) {
+          seenStrategicKeys.add(crisisKey);
+          toKeep.push(m);
+          continue;
+        }
+      }
+      toRemove.push(m);
+      continue;
+    }
+
+    // DIPLOMACY / INTERNAL temporary markers: remove COMPLETED/DAMAGED or older-turn event markers
+    if (
+      m.status === "COMPLETED" ||
+      m.status === "DAMAGED" ||
+      m.turnNumber < session.turnNumber ||
+      aggressive
+    ) {
+      toRemove.push(m);
+      continue;
+    }
+
+    toKeep.push(m);
+  }
+
+  const removeIds = toRemove.map((m) => m.id);
+  if (removeIds.length > 0) {
+    await prisma.mapMarker.deleteMany({
+      where: {
+        sessionId,
+        id: { in: removeIds },
+      },
+    });
+    emitSessionEvent(sessionId, "map_marker_updated", {
+      action: "CLEANUP_STALE",
+      removedIds: removeIds,
+      removedCount: removeIds.length,
+    });
+  }
+
+  const keptStrategicCount = toKeep.filter((m) =>
+    STRATEGIC_MARKER_CATEGORIES.has(m.category)
+  ).length;
+
+  const summary =
+    removeIds.length > 0
+      ? isTr
+        ? `Harita temizlendi: ${removeIds.length} gereksiz savaş/kriz işareti kaldırıldı, ${keptStrategicCount} stratejik tesis korundu.`
+        : `Map cleaned: removed ${removeIds.length} stale war/crisis markers, preserved ${keptStrategicCount} strategic facilities.`
+      : isTr
+        ? `Kaldırılacak eski savaş/kriz işareti bulunamadı (${keptStrategicCount} stratejik tesis korunuyor).`
+        : `No stale war/crisis clutter found (${keptStrategicCount} strategic facilities kept intact).`;
+
+  return {
+    action: "CLEANUP_STALE",
+    removedCount: removeIds.length,
+    keptCount: toKeep.length,
+    keptStrategicCount,
+    removedMarkers: toRemove.map((m) => ({
+      marker_id: m.id,
+      title: m.title,
+      category: m.category,
+      country_id: m.countryCode,
+    })),
+    summary,
+  };
+}
+
 export async function toolManageMapMarkers(params: {
   sessionId: string;
-  action: "CREATE" | "UPDATE" | "REMOVE";
+  action: "CREATE" | "UPDATE" | "REMOVE" | "CLEANUP_STALE";
   marker_id?: string;
   country_id?: string;
   region_id?: string;
@@ -2301,6 +2429,17 @@ export async function toolManageMapMarkers(params: {
     lng,
     is_animated = true,
   } = params;
+
+  if (action === "CLEANUP_STALE") {
+    const resolvedCountry = country_id?.trim()
+      ? await resolveCountryCode(sessionId, country_id).catch(() => country_id.trim().toUpperCase())
+      : undefined;
+    return cleanStaleMapMarkers({
+      sessionId,
+      countryCode: resolvedCountry,
+      aggressive: false,
+    });
+  }
 
   const session = await prisma.gameSession.findUnique({
     where: { id: sessionId },

@@ -7,12 +7,16 @@ import {
   findNuclearPartners,
   isTreatyEligibleForNuclearSharing,
 } from "@/lib/nuclear-doctrine";
-import { getCountryBlocsAndPacts } from "@/lib/geopolitics";
+import {
+  evaluateWarAttackReadiness,
+  getCountryBlocsAndPacts,
+} from "@/lib/geopolitics";
 
 import {
   Bomb,
   Coins,
   Crown,
+  Eraser,
   Flame,
   Landmark,
   MapPin,
@@ -60,8 +64,10 @@ interface CountrySidebarProps {
   onRequestNuclearSharing?: (patronCode?: string) => void;
   onOpenWarMeddle?: (targetCode: string) => void;
   onConvenePeaceCouncil?: (targetCode: string) => void;
+  onCleanCountryMarkers?: (targetCode: string) => Promise<void> | void;
   scenarioKey?: string | null;
   currentDate?: string | null;
+  currentTurn?: number;
 }
 
 const DIPLO_BADGE: Record<
@@ -156,8 +162,10 @@ export function CountrySidebar({
   onRequestNuclearSharing,
   onOpenWarMeddle,
   onConvenePeaceCouncil,
+  onCleanCountryMarkers,
   scenarioKey,
   currentDate,
+  currentTurn = 1,
 }: CountrySidebarProps) {
   const { locale } = useLocale();
   const isTr = locale === "tr";
@@ -207,6 +215,13 @@ export function CountrySidebar({
     !isPlayerCountry &&
     countryWarheads > 1 &&
     isTreatyEligibleForNuclearSharing(playerRelationWithInspected);
+
+  const warReadiness = evaluateWarAttackReadiness({
+    currentTurn,
+    relation: playerRelationWithInspected,
+    targetName: getCountryDisplayName(country.code, country.name, locale),
+    locale,
+  });
 
   const relations = diplomacies.filter(
     (d) =>
@@ -385,8 +400,8 @@ export function CountrySidebar({
                     disabled={warBusy}
                     title={
                       isTr
-                        ? "Gizli elçi gönderip halkı kışkırtır; istikrar kritik düzeye indiğinde iç isyan çıkarır (toprak ilhakı yapmaz — doğrudan fetih için Kuşat / Tank Sür kullanın)"
-                        : "Dispatches covert envoys to agitate citizens and erode stability until an internal uprising erupts (does not annex land — use Tank Blitz for conquest)"
+                        ? "Gizli elçi gönderip halkı kışkırtır; maliyet, karşı istihbarat yakalanma riski ve sıkıyönetim engeli zorluğa göre ölçeklenir (toprak ilhakı yapmaz)"
+                        : "Dispatches covert envoys to erode stability; cost, counter-intel risk & martial-law blocks scale by difficulty (does not annex land)"
                     }
                     onClick={async () => {
                       setWarBusy(true);
@@ -407,28 +422,88 @@ export function CountrySidebar({
                     {isTr ? "Elçi & İsyan" : "Send Envoys"}
                   </Button>
 
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={warBusy}
-                    onClick={async () => {
-                      setWarBusy(true);
-                      try {
-                        await onQuickWarAction({
-                          mode: "launch_operation",
-                          operationType: "TANK_BLITZ",
-                          targetCode: country.code,
-                          targetRegionId: selectedRegion?.regionId,
-                        });
-                      } finally {
-                        setWarBusy(false);
+                  {warReadiness.reasonCode === "NO_WAR_DECLARED" ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-testid="sidebar-declare-war-btn"
+                      disabled={warBusy}
+                      title={
+                        isTr
+                          ? "Resmi savaş ilan eder ve müttefikleri uyarır; birlikler 1 tur seferberlik sonrası (sonraki tur) kuşatma başlatabilir"
+                          : "Declares formal war and alerts alliances; forces must wait 1 turn of mobilization before launching sieges"
                       }
-                    }}
-                    className="h-7 border-rose-500/45 text-[10px] text-rose-300 hover:bg-rose-500/15"
-                  >
-                    <Swords className="h-3 w-3" />
-                    {isTr ? "Kuşat / Tank Sür" : "Tank Blitz"}
-                  </Button>
+                      onClick={async () => {
+                        setWarBusy(true);
+                        try {
+                          await onQuickWarAction({
+                            mode: "provoke",
+                            actionType: "DECLARE_WAR",
+                            targetCode: country.code,
+                            targetRegionId: selectedRegion?.regionId,
+                          });
+                        } finally {
+                          setWarBusy(false);
+                        }
+                      }}
+                      className="h-7 border-rose-500/60 bg-rose-950/35 text-[10px] font-semibold text-rose-200 hover:bg-rose-500/25"
+                    >
+                      <Swords className="h-3 w-3" />
+                      {isTr ? "Savaş İlan Et" : "Declare War"}
+                    </Button>
+                  ) : warReadiness.reasonCode === "MOBILIZING" ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-testid="sidebar-mobilizing-btn"
+                      disabled={warBusy}
+                      title={warReadiness.message}
+                      onClick={async () => {
+                        setWarBusy(true);
+                        try {
+                          await onQuickWarAction({
+                            mode: "launch_operation",
+                            operationType: "TANK_BLITZ",
+                            targetCode: country.code,
+                            targetRegionId: selectedRegion?.regionId,
+                          });
+                        } finally {
+                          setWarBusy(false);
+                        }
+                      }}
+                      className="h-7 border-amber-500/50 bg-amber-950/35 text-[10px] font-semibold text-amber-200 hover:bg-amber-500/20"
+                    >
+                      <Swords className="h-3 w-3" />
+                      {isTr
+                        ? `Seferber (Tur ${warReadiness.unlockTurn})`
+                        : `Mobilizing (T${warReadiness.unlockTurn})`}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-testid="sidebar-tank-blitz-btn"
+                      disabled={warBusy}
+                      title={warReadiness.message}
+                      onClick={async () => {
+                        setWarBusy(true);
+                        try {
+                          await onQuickWarAction({
+                            mode: "launch_operation",
+                            operationType: "TANK_BLITZ",
+                            targetCode: country.code,
+                            targetRegionId: selectedRegion?.regionId,
+                          });
+                        } finally {
+                          setWarBusy(false);
+                        }
+                      }}
+                      className="h-7 border-rose-500/45 text-[10px] text-rose-300 hover:bg-rose-500/15"
+                    >
+                      <Swords className="h-3 w-3" />
+                      {isTr ? "Kuşat / Tank Sür" : "Tank Blitz"}
+                    </Button>
+                  )}
 
                   {onOpenWarMeddle && (
                     <Button
@@ -683,11 +758,42 @@ export function CountrySidebar({
 
           {/* Constructed Facilities & AI Map Landmarks */}
           <div className="space-y-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              {isTr
-                ? `Kurulan Tesisler & İşaretler (${countryMarkers.length})`
-                : `Facilities & Map Landmarks (${countryMarkers.length})`}
-            </h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                {isTr
+                  ? `Kurulan Tesisler & İşaretler (${countryMarkers.length})`
+                  : `Facilities & Map Landmarks (${countryMarkers.length})`}
+              </h3>
+              {onCleanCountryMarkers &&
+                countryMarkers.some(
+                  (m) =>
+                    m.category === "CRISIS" ||
+                    m.status === "COMPLETED" ||
+                    m.status === "DAMAGED"
+                ) && (
+                  <button
+                    type="button"
+                    disabled={warBusy}
+                    onClick={async () => {
+                      setWarBusy(true);
+                      try {
+                        await onCleanCountryMarkers(country.code);
+                      } finally {
+                        setWarBusy(false);
+                      }
+                    }}
+                    title={
+                      isTr
+                        ? "Fabrika ve askeri üsleri koruyup eski savaş/kriz işaretlerini kaldır"
+                        : "Remove stale crisis/war pins while keeping factories & bases"
+                    }
+                    className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-950/30 px-2 py-0.5 text-[10px] font-semibold text-amber-300 transition hover:bg-amber-500/20 cursor-pointer"
+                  >
+                    <Eraser className="h-3 w-3" />
+                    {isTr ? "Temizle" : "Clean"}
+                  </button>
+                )}
+            </div>
             {countryMarkers.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border p-3 text-[11px] text-muted-foreground">
                 {isTr

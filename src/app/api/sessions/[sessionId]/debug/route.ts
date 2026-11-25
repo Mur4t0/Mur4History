@@ -253,7 +253,8 @@ export async function POST(
             action: (String(args.action || "CREATE") as
               | "CREATE"
               | "UPDATE"
-              | "REMOVE"),
+              | "REMOVE"
+              | "CLEANUP_STALE"),
             marker_id: args.marker_id ? String(args.marker_id) : undefined,
             country_id: args.country_id ? String(args.country_id) : undefined,
             region_id: args.region_id ? String(args.region_id) : undefined,

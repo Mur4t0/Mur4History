@@ -13,11 +13,16 @@ export interface WarDifficultyProfile {
   difficulty: "VERY_EASY" | "EASY" | "NORMAL" | "HARD" | "IMPOSSIBLE";
   costMultiplier: number;
   envoyCost: number;
+  requireEnvoyTreasury: boolean;
   falseFlagCost: number;
   offensiveCost: number;
   envoyDispatchStabilityDrop: number;
   envoyArrivalStabilityDrop: number;
   uprisingStabilityThreshold: number;
+  envoySecurityResistanceFactor: number;
+  envoyCounterIntelBustThreshold: number;
+  blockCovertDuringActiveSiege: boolean;
+  rebelGarrisonPenaltyMultiplier: number;
   envoyTensionDelta: number;
   falseFlagTensionDelta: number;
   falseFlagWarThreshold: number;
@@ -33,13 +38,18 @@ const DIFFICULTY_PROFILES: Record<string, WarDifficultyProfile> = {
   VERY_EASY: {
     difficulty: "VERY_EASY",
     costMultiplier: 0.5,
-    envoyCost: 90,
+    envoyCost: 80,
+    requireEnvoyTreasury: false,
     falseFlagCost: 110,
     offensiveCost: 60,
-    envoyDispatchStabilityDrop: 14,
-    envoyArrivalStabilityDrop: 15,
-    uprisingStabilityThreshold: 55,
-    envoyTensionDelta: 14,
+    envoyDispatchStabilityDrop: 15,
+    envoyArrivalStabilityDrop: 16,
+    uprisingStabilityThreshold: 56,
+    envoySecurityResistanceFactor: 0.25,
+    envoyCounterIntelBustThreshold: 999,
+    blockCovertDuringActiveSiege: false,
+    rebelGarrisonPenaltyMultiplier: 1.3,
+    envoyTensionDelta: 12,
     falseFlagTensionDelta: 48,
     falseFlagWarThreshold: 52,
     playerSiegeSpeedMultiplier: 1.3,
@@ -52,13 +62,18 @@ const DIFFICULTY_PROFILES: Record<string, WarDifficultyProfile> = {
   EASY: {
     difficulty: "EASY",
     costMultiplier: 0.75,
-    envoyCost: 135,
+    envoyCost: 140,
+    requireEnvoyTreasury: true,
     falseFlagCost: 160,
     offensiveCost: 90,
     envoyDispatchStabilityDrop: 12,
     envoyArrivalStabilityDrop: 13,
     uprisingStabilityThreshold: 50,
-    envoyTensionDelta: 18,
+    envoySecurityResistanceFactor: 0.5,
+    envoyCounterIntelBustThreshold: 95,
+    blockCovertDuringActiveSiege: false,
+    rebelGarrisonPenaltyMultiplier: 1.1,
+    envoyTensionDelta: 16,
     falseFlagTensionDelta: 40,
     falseFlagWarThreshold: 60,
     playerSiegeSpeedMultiplier: 1.15,
@@ -71,12 +86,17 @@ const DIFFICULTY_PROFILES: Record<string, WarDifficultyProfile> = {
   NORMAL: {
     difficulty: "NORMAL",
     costMultiplier: 1.0,
-    envoyCost: 180,
+    envoyCost: 220,
+    requireEnvoyTreasury: true,
     falseFlagCost: 220,
     offensiveCost: 120,
-    envoyDispatchStabilityDrop: 10,
-    envoyArrivalStabilityDrop: 12,
-    uprisingStabilityThreshold: 45,
+    envoyDispatchStabilityDrop: 9,
+    envoyArrivalStabilityDrop: 11,
+    uprisingStabilityThreshold: 44,
+    envoySecurityResistanceFactor: 0.85,
+    envoyCounterIntelBustThreshold: 78,
+    blockCovertDuringActiveSiege: true,
+    rebelGarrisonPenaltyMultiplier: 0.95,
     envoyTensionDelta: 22,
     falseFlagTensionDelta: 32,
     falseFlagWarThreshold: 68,
@@ -89,14 +109,19 @@ const DIFFICULTY_PROFILES: Record<string, WarDifficultyProfile> = {
   },
   HARD: {
     difficulty: "HARD",
-    costMultiplier: 1.25,
-    envoyCost: 225,
-    falseFlagCost: 260,
+    costMultiplier: 1.3,
+    envoyCost: 310,
+    requireEnvoyTreasury: true,
+    falseFlagCost: 280,
     offensiveCost: 150,
-    envoyDispatchStabilityDrop: 9,
-    envoyArrivalStabilityDrop: 11,
-    uprisingStabilityThreshold: 44,
-    envoyTensionDelta: 25,
+    envoyDispatchStabilityDrop: 8,
+    envoyArrivalStabilityDrop: 10,
+    uprisingStabilityThreshold: 39,
+    envoySecurityResistanceFactor: 1.15,
+    envoyCounterIntelBustThreshold: 68,
+    blockCovertDuringActiveSiege: true,
+    rebelGarrisonPenaltyMultiplier: 0.75,
+    envoyTensionDelta: 26,
     falseFlagTensionDelta: 30,
     falseFlagWarThreshold: 76,
     playerSiegeSpeedMultiplier: 0.88,
@@ -108,14 +133,19 @@ const DIFFICULTY_PROFILES: Record<string, WarDifficultyProfile> = {
   },
   IMPOSSIBLE: {
     difficulty: "IMPOSSIBLE",
-    costMultiplier: 1.6,
-    envoyCost: 290,
-    falseFlagCost: 340,
+    costMultiplier: 1.65,
+    envoyCost: 420,
+    requireEnvoyTreasury: true,
+    falseFlagCost: 360,
     offensiveCost: 200,
-    envoyDispatchStabilityDrop: 7,
-    envoyArrivalStabilityDrop: 9,
-    uprisingStabilityThreshold: 38,
-    envoyTensionDelta: 30,
+    envoyDispatchStabilityDrop: 5,
+    envoyArrivalStabilityDrop: 8,
+    uprisingStabilityThreshold: 32,
+    envoySecurityResistanceFactor: 1.5,
+    envoyCounterIntelBustThreshold: 58,
+    blockCovertDuringActiveSiege: true,
+    rebelGarrisonPenaltyMultiplier: 0.55,
+    envoyTensionDelta: 32,
     falseFlagTensionDelta: 22,
     falseFlagWarThreshold: 82,
     playerSiegeSpeedMultiplier: 0.74,
@@ -561,5 +591,64 @@ export function evaluatePeaceCouncilReadiness(params: {
     accepted,
     packageCost,
     reason,
+  };
+}
+
+export interface WarMobilizationStatus {
+  ready: boolean;
+  reasonCode: "READY" | "NO_WAR_DECLARED" | "MOBILIZING";
+  declaredTurn: number | null;
+  unlockTurn: number | null;
+  message: string;
+}
+
+/**
+ * Shared war-declaration & 1-turn mobilization readiness evaluator:
+ * Nations must formally declare WAR first and wait until the next turn (declaredTurn + 1)
+ * before sending offensive siege/blitz forces.
+ */
+export function evaluateWarAttackReadiness(params: {
+  currentTurn: number;
+  relation: { status: string; updatedTurn?: number | null } | null | undefined;
+  targetName: string;
+  locale?: AppLocale;
+}): WarMobilizationStatus {
+  const { currentTurn, relation, targetName, locale = "tr" } = params;
+  const isTr = locale === "tr";
+
+  if (!relation || relation.status !== "WAR") {
+    return {
+      ready: false,
+      reasonCode: "NO_WAR_DECLARED",
+      declaredTurn: null,
+      unlockTurn: null,
+      message: isTr
+        ? `${targetName} ülkesine henüz savaş ilan edilmedi! Asker/tank sürmeden önce 'Savaş İlan Et' butonuna basıp 1 tur seferberlik beklemelisiniz.`
+        : `No state of war exists with ${targetName} yet! You must Declare War first and wait 1 turn for mobilization before sending troops.`,
+    };
+  }
+
+  const declaredTurn = relation.updatedTurn ?? 1;
+  const unlockTurn = declaredTurn + 1;
+  if (currentTurn < unlockTurn) {
+    return {
+      ready: false,
+      reasonCode: "MOBILIZING",
+      declaredTurn,
+      unlockTurn,
+      message: isTr
+        ? `Seferberlik Sürüyor: ${targetName} savaşı Tur ${declaredTurn} tarihinde ilan edildi. Birlik ve tank sevkiyatı 1 tur sonra (Tur ${unlockTurn}) açılacaktır!`
+        : `Mobilization Underway: War against ${targetName} was declared on Turn ${declaredTurn}. Offensive troops can advance next turn (Turn ${unlockTurn})!`,
+    };
+  }
+
+  return {
+    ready: true,
+    reasonCode: "READY",
+    declaredTurn,
+    unlockTurn,
+    message: isTr
+      ? `Ordular seferber — ${targetName} üzerine taarruz başlatabilirsiniz.`
+      : `Armies mobilized — ready to launch offensive operations against ${targetName}.`,
   };
 }

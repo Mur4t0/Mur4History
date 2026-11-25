@@ -423,40 +423,56 @@ async function run() {
     assert.equal(inciteJson.ok, true);
     assert.ok(inciteJson.newTension >= 50);
 
-    const opRes = await mcpClient.callTool({
-      name: "trigger_war_operation",
+    // Enforce 1-Turn War Declaration & Mobilization Gate:
+    // 1) Cannot launch offensive blitz against ITA before formally declaring war
+    const unDeclaredAttackRes = await fetch(`${BASE}/api/sessions/${sessionId}/war`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "launch_operation",
+        attackerCode: "TUR",
+        defenderCode: "ITA",
+        operationType: "TANK_BLITZ",
+      }),
+    });
+    assert.equal(
+      unDeclaredAttackRes.status,
+      400,
+      "Expected attacking peaceful nation ITA before declaring war to be rejected!"
+    );
+
+    // 2) Declare formal war on ITA on Turn 2 (sets WAR without immediate same-turn tanks)
+    const declareItaRes = await mcpClient.callTool({
+      name: "provoke_country",
       arguments: {
-        mode: "LAUNCH",
-        attacker_country_id: "TUR",
-        defender_country_id: "ITA",
-        operation_type: "TANK_BLITZ",
-        unit_type: "ARMOR",
-        intensity: 82,
+        actor_country_id: "TUR",
+        target_country_id: "ITA",
+        action_type: "DECLARE_WAR",
       },
     });
-    const opJson = JSON.parse(opRes.content[0].text);
-    assert.equal(opJson.ok, true);
-    assert.equal(opJson.operation.unitType, "ARMOR");
+    const declareItaJson = JSON.parse(declareItaRes.content[0].text);
+    assert.equal(declareItaJson.ok, true);
+    assert.equal(declareItaJson.warErupted, true);
+    assert.equal(declareItaJson.operation, null);
 
-    const advWarRes = await mcpClient.callTool({
-      name: "trigger_war_operation",
-      arguments: { mode: "ADVANCE" },
+    // 3) Same-turn attack immediately after declaring war on Turn 2 MUST be blocked (1-turn mobilization wait)
+    const sameTurnBlitzRes = await fetch(`${BASE}/api/sessions/${sessionId}/war`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "launch_operation",
+        attackerCode: "TUR",
+        defenderCode: "ITA",
+        operationType: "TANK_BLITZ",
+      }),
     });
-    const advWarJson = JSON.parse(advWarRes.content[0].text);
-    assert.equal(advWarJson.ok, true);
-    assert.ok(advWarJson.advancedCount >= 1);
-
-    // Verify ITA automatically launched a live Counter-Offensive (ITA -> TUR) when attacked!
-    const counterCheckRes = await fetch(`${BASE}/api/sessions/${sessionId}`);
-    const counterCheckJson = await counterCheckRes.json();
-    const itaCounterOp = (counterCheckJson.session.warOperations ?? []).find(
-      (w) => w.attackerCode === "ITA" && w.defenderCode === "TUR"
-    );
-    assert.ok(
-      itaCounterOp,
-      "Expected defending nation ITA to automatically launch a live Counter-Offensive against attacker TUR!"
+    assert.equal(
+      sameTurnBlitzRes.status,
+      400,
+      "Expected same-turn siege right after war declaration to be blocked for 1-turn mobilization!"
     );
 
+    // 4) Also declare formal war on BGR right after weakening them via covert envoys -> uprising!
     // Verify SPONSOR_REBELS dispatches Covert Envoys (ENVOY_AGITATION) -> stability drops -> Internal Uprising (REBEL_UPRISING) WITHOUT annexing BGR!
     let preBgrRes = await fetch(`${BASE}/api/sessions/${sessionId}`);
     let preBgrJson = await preBgrRes.json();
@@ -506,7 +522,7 @@ async function run() {
       "Expected pulsing CRISIS unrest marker on BGR after covert envoy wave"
     );
 
-    // Push once more so stability hits <= 45 and sparks REBEL_UPRISING, STILL without annexing BGR!
+    // Push once more so stability hits <= 39 and sparks REBEL_UPRISING, STILL without annexing BGR!
     const envoyRes2 = await mcpClient.callTool({
       name: "provoke_country",
       arguments: {
@@ -543,7 +559,91 @@ async function run() {
       (w) => w.defenderCode === "BGR" && w.operationType === "REBEL_UPRISING"
     );
     assert.equal(finishedRebelOp?.status, "UPRISING");
-    const turVsItaOp = (preBgrJson.session.warOperations ?? []).find(
+
+    // Declare formal war on BGR on Turn 2, advance 1 turn (Turn 2 -> Turn 3) to complete mobilization!
+    const declareBgrRes = await mcpClient.callTool({
+      name: "provoke_country",
+      arguments: {
+        actor_country_id: "TUR",
+        target_country_id: "BGR",
+        action_type: "DECLARE_WAR",
+      },
+    });
+    assert.equal(JSON.parse(declareBgrRes.content[0].text).warErupted, true);
+
+    await mcpClient.callTool({
+      name: "advance_turn",
+      arguments: {
+        new_date: "1936-03-01",
+        turn_summary: "Seferberlik tamamlandı; cephe taarruzları başlıyor.",
+      },
+    });
+
+    // Now on Turn 3 (1 turn after Turn 2 war declarations), armored sieges unlock against both ITA & BGR!
+    const opRes = await mcpClient.callTool({
+      name: "trigger_war_operation",
+      arguments: {
+        mode: "LAUNCH",
+        attacker_country_id: "TUR",
+        defender_country_id: "ITA",
+        operation_type: "TANK_BLITZ",
+        unit_type: "ARMOR",
+        intensity: 82,
+      },
+    });
+    const opJson = JSON.parse(opRes.content[0].text);
+    assert.equal(opJson.ok, true);
+    assert.equal(opJson.operation.unitType, "ARMOR");
+
+    const advWarRes = await mcpClient.callTool({
+      name: "trigger_war_operation",
+      arguments: { mode: "ADVANCE" },
+    });
+    const advWarJson = JSON.parse(advWarRes.content[0].text);
+    assert.equal(advWarJson.ok, true);
+    assert.ok(advWarJson.advancedCount >= 1);
+
+    // Verify ITA automatically launched a live Counter-Offensive (ITA -> TUR) when attacked!
+    const counterCheckRes = await fetch(`${BASE}/api/sessions/${sessionId}`);
+    const counterCheckJson = await counterCheckRes.json();
+    const itaCounterOp = (counterCheckJson.session.warOperations ?? []).find(
+      (w) => w.attackerCode === "ITA" && w.defenderCode === "TUR"
+    );
+    assert.ok(
+      itaCounterOp,
+      "Expected defending nation ITA to automatically launch a live Counter-Offensive against attacker TUR!"
+    );
+
+    // Verify wartime martial-law guard blocks concurrent SPONSOR_REBELS while TUR is actively besieging ITA on HARD
+    const concurrentRebelsBlockedRes = await fetch(
+      `${BASE}/api/sessions/${sessionId}/war`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "provoke",
+          actorCode: "TUR",
+          targetCode: "ITA",
+          actionType: "SPONSOR_REBELS",
+        }),
+      }
+    );
+    assert.equal(
+      concurrentRebelsBlockedRes.status,
+      400,
+      "Expected simultaneous covert rebellion during an active military siege on HARD to be blocked by wartime martial law!"
+    );
+
+    // Advance until TUR's reckless head-on siege vs fortified ITA is REPELLED
+    for (let step = 0; step < 8; step++) {
+      await mcpClient.callTool({
+        name: "trigger_war_operation",
+        arguments: { mode: "ADVANCE" },
+      });
+    }
+    const postRepelRes = await fetch(`${BASE}/api/sessions/${sessionId}`);
+    const postRepelJson = await postRepelRes.json();
+    const turVsItaOp = (postRepelJson.session.warOperations ?? []).find(
       (w) => w.id === opJson.operation.id
     );
     assert.equal(
@@ -551,7 +651,7 @@ async function run() {
       "REPELLED",
       `Expected reckless head-on siege by TUR (62 mil) against stronger fortified ITA (74 mil) on HARD to be REPELLED, got: ${turVsItaOp?.status}`
     );
-    console.log("Live Defender Counter-Attack, Garrison Siege Repulsion (REPELLED) & Covert Envoy Uprising verified!");
+    console.log("1-Turn War Declaration, Mobilization Gate, Defender Counter-Attack, Siege Repulsion (REPELLED) & Covert Envoy Uprising verified!");
 
     // Now launch a real armored siege against rebel-weakened BGR via Browser UI, advance until CAPTURED while AI is NOT actively blocking,
     // and verify wait_for_player_action wakes up IMMEDIATELY via buffered WAR_ACTION queue!
@@ -748,6 +848,52 @@ async function run() {
     assert.equal(postNukeTur.nuclearWarheads, 1);
     console.log("Nuclear Stockpile Gating, Treaty Sharing & Detonation verified!");
 
+    // Test Smart Map Cleanup (via both /markers API & manage_map_markers MCP CLEANUP_STALE)
+    // Add an extra duplicate/stale crisis marker to clean via MCP CLEANUP_STALE after UI smart_clean!
+    const cleanApiRes = await fetch(`${BASE}/api/sessions/${sessionId}/markers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "smart_clean", locale: "tr" }),
+    });
+    assert.equal(cleanApiRes.status, 200);
+    const cleanApiJson = await cleanApiRes.json();
+    assert.equal(cleanApiJson.ok, true);
+    assert.ok(cleanApiJson.removedCount >= 1, "Expected smart_clean to prune crisis/fallout markers");
+    assert.ok(cleanApiJson.keptStrategicCount >= 1, "Expected Ankara factory to be preserved");
+
+    await mcpClient.callTool({
+      name: "manage_map_markers",
+      arguments: {
+        action: "CREATE",
+        country_id: "TUR",
+        region_id: "TUR_EAST",
+        city_name: "Erzurum",
+        title: "Geçici Cephe Alarmı",
+        description: "Test stale crisis clutter pin.",
+        category: "CRISIS",
+        status: "ALERT",
+      },
+    });
+    const mcpCleanRes = await mcpClient.callTool({
+      name: "manage_map_markers",
+      arguments: { action: "CLEANUP_STALE" },
+    });
+    const mcpCleanJson = JSON.parse(mcpCleanRes.content[0].text);
+    assert.equal(mcpCleanJson.ok, true);
+    assert.ok(mcpCleanJson.removedCount >= 1, "Expected MCP CLEANUP_STALE to remove crisis pin");
+    assert.ok(mcpCleanJson.keptStrategicCount >= 1, "Expected strategic factory preserved after MCP clean");
+
+    const aiDelegateRes = await fetch(`${BASE}/api/sessions/${sessionId}/markers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "ask_ai_clean", locale: "tr" }),
+    });
+    assert.equal(aiDelegateRes.status, 200);
+    const aiDelegateJson = await aiDelegateRes.json();
+    assert.equal(aiDelegateJson.mode, "ask_ai_clean");
+    assert.ok(aiDelegateJson.orderId, "Expected ask_ai_clean to queue cleanup directive order");
+    console.log("Smart & AI Map Marker Cleanup verified!");
+
     await mcpClient.close();
 
     // Give UI SSE stream a moment to flush
@@ -809,7 +955,7 @@ async function run() {
     );
     const exportedArchive = await exportRes.json();
     assert.equal(exportedArchive.format, "mur4history-save");
-    assert.equal(exportedArchive.session.turnNumber, 2);
+    assert.equal(exportedArchive.session.turnNumber, 3);
     assert.ok(exportedArchive.countries.length > 100);
     assert.ok(exportedArchive.regions.length > 200);
     assert.ok(exportedArchive.councils.length >= 1);
@@ -832,7 +978,7 @@ async function run() {
     const importedId = importJson.session.id;
     assert.notEqual(importedId, sessionId);
     assert.equal(importJson.session.name, "Imported Save Check");
-    assert.equal(importJson.session.turnNumber, 2);
+    assert.equal(importJson.session.turnNumber, 3);
     assert.equal(importJson.session.playerCountryCode, "TUR");
     assert.equal(
       importJson.session.regions.find((r) => r.regionId === "SYR")?.ownerCountryCode,
@@ -859,7 +1005,7 @@ async function run() {
     const clonedId1 = cloneJson1.session.id;
     assert.notEqual(clonedId1, sessionId);
     assert.ok(cloneJson1.session.name.endsWith("(Klon)"));
-    assert.equal(cloneJson1.session.turnNumber, 2);
+    assert.equal(cloneJson1.session.turnNumber, 3);
     assert.equal(cloneJson1.session.playerCountryCode, "TUR");
     assert.equal(
       cloneJson1.session.regions.length,
@@ -893,7 +1039,7 @@ async function run() {
     console.log("=== 7. Testing Turn Rollback (Time Travel to Turn 1) ===");
     const afterTurnRes = await fetch(`${BASE}/api/sessions/${sessionId}`);
     const afterTurnJson = await afterTurnRes.json();
-    assert.equal(afterTurnJson.session.turnNumber, 2);
+    assert.equal(afterTurnJson.session.turnNumber, 3);
     assert.equal(afterTurnJson.session.awaitingAiSimulation, false);
     assert.ok(
       (afterTurnJson.session.councils ?? []).length >= 1,

@@ -850,11 +850,11 @@ export function createGameMasterMcpServer(boundSessionId: string): McpServer {
         ...initialMeta.tools.manage_map_markers,
         inputSchema: {
           action: z
-            .enum(["CREATE", "UPDATE", "REMOVE"])
+            .enum(["CREATE", "UPDATE", "REMOVE", "CLEANUP_STALE"])
             .describe(
               d(
-                "CREATE: yeni işaret ekler; UPDATE: seviye/durum/konum günceller; REMOVE: haritadan kaldırır.",
-                "CREATE adds a marker; UPDATE modifies level/status/position; REMOVE deletes it."
+                "CREATE: yeni işaret ekler; UPDATE: seviye/durum günceller; REMOVE: tek işareti siler; CLEANUP_STALE: fabrika/askeri üs/altyapı tesislerini koruyup savaş/kriz kalıntılarını topluca temizler.",
+                "CREATE adds a marker; UPDATE modifies it; REMOVE deletes one; CLEANUP_STALE preserves strategic facilities (factories/bases/infrastructure/naval/R&D) while clearing stale war/crisis clutter."
               )
             ),
           marker_id: z
@@ -1141,9 +1141,7 @@ export function createGameMasterMcpServer(boundSessionId: string): McpServer {
           intensity: args.intensity ?? 75,
           title: args.title,
           description: args.description,
-          autoDeclareWar:
-            args.operation_type !== "REBEL_UPRISING" &&
-            args.operation_type !== "ENVOY_AGITATION",
+          autoDeclareWar: false,
           skipAiWake: true,
         });
         return {

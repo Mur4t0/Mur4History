@@ -3,7 +3,7 @@
 import { useLocale } from "@/components/LanguageProvider";
 import { getCartographicMapLabel, getCountryDisplayName } from "@/lib/i18n";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import {
   Map as MapLibreMap,
   Marker,
@@ -401,9 +401,9 @@ function applyMapThemeToMapLibre(
       "case",
       ["boolean", ["feature-state", "hover"], false],
       Math.min(0.94, theme.landFillOpacity + 0.16),
-      ["==", ["get", "isFlashed"], 1],
+      ["boolean", ["feature-state", "flashed"], false],
       0.94,
-      ["==", ["get", "isSelected"], 1],
+      ["boolean", ["feature-state", "selected"], false],
       Math.min(0.92, theme.landFillOpacity + 0.12),
       theme.landFillOpacity,
     ]);
@@ -548,7 +548,218 @@ function applyMapThemeToMapLibre(
   }
 }
 
-export function WorldMap({
+interface HoverProvinceState {
+  x: number;
+  y: number;
+  regionId: string;
+  regionName: string;
+  ownerName: string;
+  ownerFlag: string;
+  ownerCode: string;
+  strategicStatus: string;
+  baseValue: number;
+}
+
+interface HoveredMarkerState {
+  marker: MapMarkerRecord;
+  x: number;
+  y: number;
+}
+
+interface OverlayHudApi {
+  setHoverInfo: (next: HoverProvinceState | null) => void;
+  setHoveredMarker: (
+    next:
+      | HoveredMarkerState
+      | null
+      | ((curr: HoveredMarkerState | null) => HoveredMarkerState | null)
+  ) => void;
+  setPinnedMarker: (
+    next:
+      | MapMarkerRecord
+      | null
+      | ((curr: MapMarkerRecord | null) => MapMarkerRecord | null)
+  ) => void;
+}
+
+const MapHoverOverlays = memo(function MapHoverOverlays({
+  apiRef,
+  countryByCode,
+  perspectiveCountryCode,
+  playerRisks,
+  locale,
+}: {
+  apiRef: MutableRefObject<OverlayHudApi | null>;
+  countryByCode: Map<string, CountryRecord>;
+  perspectiveCountryCode: string | null;
+  playerRisks: Record<string, WarRiskSummary>;
+  locale: "tr" | "en";
+}) {
+  const isTr = locale === "tr";
+  const [hoverInfo, setHoverInfo] = useState<HoverProvinceState | null>(null);
+  const [hoveredMarker, setHoveredMarker] = useState<HoveredMarkerState | null>(
+    null
+  );
+  const [pinnedMarker, setPinnedMarker] = useState<MapMarkerRecord | null>(null);
+
+  apiRef.current = {
+    setHoverInfo,
+    setHoveredMarker,
+    setPinnedMarker,
+  };
+
+  const activeCardMarker = pinnedMarker ?? hoveredMarker?.marker ?? null;
+  const activeMarkerOwner = activeCardMarker
+    ? countryByCode.get(activeCardMarker.countryCode)
+    : undefined;
+  const activeMarkerTheme = activeCardMarker
+    ? MARKER_THEME[activeCardMarker.category] ?? MARKER_THEME.INDUSTRY
+    : null;
+
+  return (
+    <>
+      {activeCardMarker && activeMarkerTheme && (
+        <div
+          className={`${
+            pinnedMarker
+              ? "pointer-events-auto bottom-16 left-1/2 -translate-x-1/2"
+              : "pointer-events-none"
+          } absolute z-30 w-72 rounded-xl border border-border bg-[#0b111b]/95 p-3 text-xs shadow-2xl backdrop-blur-md`}
+          style={
+            pinnedMarker
+              ? undefined
+              : hoveredMarker
+                ? {
+                    left: Math.min(
+                      hoveredMarker.x + 16,
+                      typeof window !== "undefined" ? window.innerWidth - 310 : 900
+                    ),
+                    top: Math.max(hoveredMarker.y - 95, 68),
+                  }
+                : undefined
+          }
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-full animate-pulse"
+                  style={{ backgroundColor: activeMarkerTheme.color }}
+                />
+                <span className="font-semibold text-foreground leading-snug">
+                  {activeCardMarker.title}
+                </span>
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                <span>
+                  {activeMarkerOwner?.flagEmoji ?? "🏳️"}{" "}
+                  {getCountryDisplayName(
+                    activeCardMarker.countryCode,
+                    activeMarkerOwner?.name ?? activeCardMarker.countryCode,
+                    locale
+                  )}
+                </span>
+                <span>•</span>
+                <span className="text-primary font-medium">
+                  {activeCardMarker.cityName ||
+                    activeCardMarker.regionId ||
+                    (isTr ? "Stratejik Nokta" : "Strategic Point")}
+                </span>
+              </div>
+            </div>
+            {pinnedMarker && (
+              <button
+                type="button"
+                onClick={() => setPinnedMarker(null)}
+                className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                title={isTr ? "Kapat" : "Close"}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          <p className="mt-2 text-[11px] leading-relaxed text-foreground/90">
+            {activeCardMarker.description}
+          </p>
+
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5 border-t border-border/60 pt-2 text-[10px]">
+            <span
+              className="rounded-full px-2 py-0.5 font-semibold"
+              style={{
+                backgroundColor: `${activeMarkerTheme.color}22`,
+                color: activeMarkerTheme.color,
+              }}
+            >
+              {isTr ? activeMarkerTheme.labelTr : activeMarkerTheme.labelEn} •{" "}
+              {isTr ? "Svy" : "Lv"} {activeCardMarker.level}
+            </span>
+            <span className="text-muted-foreground">
+              {MARKER_STATUS_LABEL[activeCardMarker.status]?.[locale] ??
+                activeCardMarker.status}{" "}
+              • {isTr ? "Tur" : "Turn"} {activeCardMarker.turnNumber}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {hoverInfo && !hoveredMarker && (
+        <div
+          className="pointer-events-none absolute z-30 w-56 rounded-lg border border-border bg-[#0b111b]/95 p-2.5 text-xs shadow-2xl backdrop-blur-md"
+          style={{
+            left: Math.min(
+              hoverInfo.x + 14,
+              typeof window !== "undefined" ? window.innerWidth - 250 : 900
+            ),
+            top: Math.max(hoverInfo.y - 70, 64),
+          }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-semibold text-foreground">
+              {hoverInfo.regionName}
+            </span>
+            <span className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-primary">
+              {hoverInfo.regionId}
+            </span>
+          </div>
+          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span>{hoverInfo.ownerFlag}</span>
+            <span className="font-medium text-foreground/90">
+              {getCountryDisplayName(
+                hoverInfo.ownerCode,
+                hoverInfo.ownerName,
+                locale
+              )}
+            </span>
+          </div>
+          <div className="mt-1.5 flex items-center justify-between border-t border-border/60 pt-1.5 text-[10px] text-muted-foreground">
+            <span>
+              {isTr ? "Statü" : "Status"}:{" "}
+              {REGION_STATUS_LABEL[hoverInfo.strategicStatus]?.[locale] ??
+                hoverInfo.strategicStatus}
+            </span>
+            <span>
+              {isTr ? "Değer" : "Value"}: {hoverInfo.baseValue}
+            </span>
+          </div>
+          {hoverInfo.ownerCode !== perspectiveCountryCode &&
+            playerRisks[hoverInfo.ownerCode] && (
+              <div className="mt-1 flex items-center justify-between rounded bg-rose-950/50 px-1.5 py-0.5 text-[10px] text-rose-200">
+                <span>{isTr ? "Savaş Olasılığı:" : "War Risk:"}</span>
+                <span className="font-mono font-bold">
+                  %{playerRisks[hoverInfo.ownerCode].probability}
+                </span>
+              </div>
+            )}
+        </div>
+      )}
+    </>
+  );
+});
+
+const MAX_ANIMATED_PULSE_MARKERS = 14;
+
+export const WorldMap = memo(function WorldMap({
   regions,
   countries,
   diplomacies,
@@ -572,28 +783,16 @@ export function WorldMap({
   const isTr = locale === "tr";
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const markersMapRef = useRef<globalThis.Map<string, Marker>>(new globalThis.Map());
+  const markersMapRef = useRef<
+    globalThis.Map<string, { marker: Marker; sig: string }>
+  >(new globalThis.Map());
+  const overlayApiRef = useRef<OverlayHudApi | null>(null);
+  const prevSelectedRegionRef = useRef<string | null>(null);
+  const prevFlashedRegionsRef = useRef<string[]>([]);
   const [rawGeo, setRawGeo] = useState<RawCollection | null>(null);
   const [antarcticaGeo, setAntarcticaGeo] =
     useState<GeoJSON.FeatureCollection | null>(null);
   const [mapReady, setMapReady] = useState(false);
-  const [hoveredMarker, setHoveredMarker] = useState<{
-    marker: MapMarkerRecord;
-    x: number;
-    y: number;
-  } | null>(null);
-  const [pinnedMarker, setPinnedMarker] = useState<MapMarkerRecord | null>(null);
-  const [hoverInfo, setHoverInfo] = useState<{
-    x: number;
-    y: number;
-    regionId: string;
-    regionName: string;
-    ownerName: string;
-    ownerFlag: string;
-    ownerCode: string;
-    strategicStatus: string;
-    baseValue: number;
-  } | null>(null);
 
   const onSelectRef = useRef(onSelectRegion);
   onSelectRef.current = onSelectRegion;
@@ -648,9 +847,24 @@ export function WorldMap({
     };
   }, []);
 
-  // Build styled province polygons + dissolved country outer borders + imperial country labels
+  const ownershipTopologyKey = useMemo(() => {
+    let key = `${locale}::`;
+    for (const r of regions) {
+      key += `${r.regionId}=${r.ownerCountryCode}:${r.strategicStatus === "CAPITAL" ? 1 : 0};`;
+    }
+    key += "::";
+    for (const c of countries) {
+      key += `${c.code}=${c.name}:${c.capitalRegionId ?? ""};`;
+    }
+    return key;
+  }, [regions, countries, locale]);
+
+  const topologyInputsRef = useRef({ regionById, countryByCode, locale });
+  topologyInputsRef.current = { regionById, countryByCode, locale };
+
+  // Stage A: Dissolved country outer borders, capitals & cartographic labels.
+  // Only recomputed when territory ownership, country names/capitals, or locale actually change.
   const {
-    styledGeoJson,
     countryOutlinesGeoJson,
     countryLabelsGeoJson,
     countryCurvedLabelsGeoJson,
@@ -658,7 +872,6 @@ export function WorldMap({
   } = useMemo(() => {
     if (!rawGeo) {
       return {
-        styledGeoJson: null,
         countryOutlinesGeoJson: {
           type: "FeatureCollection" as const,
           features: [] as GeoJSON.Feature[],
@@ -678,81 +891,24 @@ export function WorldMap({
       };
     }
 
-    const flashSet = new Set(flashedRegionIds);
-    const activeOps = warOperations.filter((op) =>
-      ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status)
-    );
-    const besiegedRegionSet = new Set(activeOps.map((op) => op.targetRegionId));
-    const atWarCountrySet = new Set<string>();
-    for (const d of diplomacies) {
-      if (d.status === "WAR") {
-        atWarCountrySet.add(d.countryA);
-        atWarCountrySet.add(d.countryB);
-      }
-    }
-    for (const op of activeOps) {
-      if (
-        op.operationType !== "ENVOY_AGITATION" &&
-        op.operationType !== "REBEL_UPRISING"
-      ) {
-        atWarCountrySet.add(op.attackerCode);
-        atWarCountrySet.add(op.defenderCode);
-      }
-    }
-    const maxRiskByCountry = new Map<string, number>();
-    for (const hs of warHotspots) {
-      maxRiskByCountry.set(
-        hs.countryA,
-        Math.max(maxRiskByCountry.get(hs.countryA) ?? 0, hs.probability)
-      );
-      maxRiskByCountry.set(
-        hs.countryB,
-        Math.max(maxRiskByCountry.get(hs.countryB) ?? 0, hs.probability)
-      );
-    }
+    const {
+      regionById: rMap,
+      countryByCode: cMap,
+      locale: activeLocale,
+    } = topologyInputsRef.current;
+
     const featuresByOwner = new Map<string, RawFeature[]>();
     const capitalFeatures: GeoJSON.Feature[] = [];
 
-    const styledFeatures = rawGeo.features.map((feat) => {
+    for (const feat of rawGeo.features) {
       const rid = feat.properties.region_id;
-      const reg = regionById.get(rid);
+      const reg = rMap.get(rid);
       const ownerCode = reg?.ownerCountryCode ?? "NEU";
-      const owner = countryByCode.get(ownerCode);
+      const owner = cMap.get(ownerCode);
 
       const group = featuresByOwner.get(ownerCode) ?? [];
       group.push(feat);
       featuresByOwner.set(ownerCode, group);
-
-      let fillColor = owner?.color ?? "#3a4b63";
-      if (mapMode === "diplomacy") {
-        const isSelf = ownerCode === perspectiveCountryCode;
-        fillColor = diplomacyColor(diplomacyLookup.get(ownerCode), isSelf);
-      } else if (mapMode === "economy") {
-        fillColor = economyColor(owner?.economy ?? 25);
-      } else if (mapMode === "threat") {
-        fillColor = threatColor(owner?.infamy ?? 0);
-      } else if (mapMode === "war") {
-        const pairRisk = Math.max(
-          playerRisks[ownerCode]?.probability ?? 0,
-          maxRiskByCountry.get(ownerCode) ?? 0
-        );
-        if (besiegedRegionSet.has(rid)) {
-          fillColor = "#f97316";
-        } else if (atWarCountrySet.has(ownerCode)) {
-          fillColor = "#dc2626";
-        } else if (pairRisk >= 72) {
-          fillColor = "#ea580c";
-        } else if (pairRisk >= 48) {
-          fillColor = "#ca8a04";
-        } else {
-          fillColor = "#162033";
-        }
-      }
-
-      const isSelected = rid === selectedRegionId;
-      const isFlashed = flashSet.has(rid);
-      const isCountryHighlighted =
-        perspectiveCountryCode !== null && ownerCode === perspectiveCountryCode;
 
       if (
         reg?.strategicStatus === "CAPITAL" &&
@@ -772,41 +928,21 @@ export function WorldMap({
           },
         });
       }
-
-      return {
-        ...feat,
-        properties: {
-          ...feat.properties,
-          ownerCode,
-          ownerName: owner?.name ?? ownerCode,
-          strategicStatus: reg?.strategicStatus ?? "CORE",
-          fillColor: isFlashed ? "#fde047" : fillColor,
-          isSelected: isSelected ? 1 : 0,
-          isFlashed: isFlashed ? 1 : 0,
-          isOccupied: reg?.strategicStatus === "OCCUPIED" ? 1 : 0,
-          isHighlightedCountry: isCountryHighlighted ? 1 : 0,
-        },
-      };
-    });
+    }
 
     const outlineFeatures: GeoJSON.Feature[] = [];
     const labelFeatures: GeoJSON.Feature[] = [];
     const curvedLabelFeatures: GeoJSON.Feature[] = [];
 
     for (const [ownerCode, ownerFeats] of featuresByOwner.entries()) {
-      const owner = countryByCode.get(ownerCode);
-      const isHighlighted =
-        perspectiveCountryCode !== null && ownerCode === perspectiveCountryCode;
+      const owner = cMap.get(ownerCode);
 
       let mergedCoords: polygonClipping.MultiPolygon = [];
       if (ownerFeats.length === 1) {
         mergedCoords = toMultiPolygonCoords(ownerFeats[0].geometry);
         outlineFeatures.push({
           type: "Feature",
-          properties: {
-            ownerCode,
-            isHighlighted: isHighlighted ? 1 : 0,
-          },
+          properties: { ownerCode },
           geometry: ownerFeats[0].geometry,
         });
       } else {
@@ -817,10 +953,7 @@ export function WorldMap({
           mergedCoords = polygonClipping.union(polys[0], ...polys.slice(1));
           outlineFeatures.push({
             type: "Feature",
-            properties: {
-              ownerCode,
-              isHighlighted: isHighlighted ? 1 : 0,
-            },
+            properties: { ownerCode },
             geometry:
               mergedCoords.length === 1
                 ? { type: "Polygon", coordinates: mergedCoords[0] }
@@ -832,19 +965,19 @@ export function WorldMap({
             mergedCoords.push(...mc);
             outlineFeatures.push({
               type: "Feature",
-              properties: {
-                ownerCode,
-                isHighlighted: isHighlighted ? 1 : 0,
-              },
+              properties: { ownerCode },
               geometry: f.geometry,
             });
           }
         }
       }
 
-      // Label each contiguous landmass cluster cleanly (homeland + major overseas domains)
       const clusters = clusterContiguousFeatures(ownerFeats);
-      const labelText = getCartographicMapLabel(owner?.name, ownerCode, locale);
+      const labelText = getCartographicMapLabel(
+        owner?.name,
+        ownerCode,
+        activeLocale
+      );
 
       for (let ci = 0; ci < clusters.length; ci++) {
         const cluster = clusters[ci];
@@ -865,7 +998,6 @@ export function WorldMap({
           clusterCoords.push(...toMultiPolygonCoords(f.geometry));
         }
 
-        // Only label overseas non-capital clusters if they are substantial landmasses
         if (!isCapitalCluster && ci > 0 && totalClusterArea < 65) {
           continue;
         }
@@ -927,10 +1059,6 @@ export function WorldMap({
     }
 
     return {
-      styledGeoJson: {
-        type: "FeatureCollection" as const,
-        features: styledFeatures,
-      },
       countryOutlinesGeoJson: {
         type: "FeatureCollection" as const,
         features: outlineFeatures,
@@ -948,21 +1076,172 @@ export function WorldMap({
         features: capitalFeatures,
       },
     };
-  }, [
-    rawGeo,
-    regionById,
-    countryByCode,
-    diplomacies,
+  }, [rawGeo, ownershipTopologyKey, perspectiveCountryCode]);
+
+  // Signature for province war-coloring so minor battle progress ticks (%) do NOT trigger GeoJSON rebuilds
+  const warStyleKey = useMemo(() => {
+    if (mapMode !== "war") return "";
+    const activeOps = warOperations.filter((op) =>
+      ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status)
+    );
+    const opKey = activeOps
+      .map(
+        (op) =>
+          `${op.targetRegionId}:${op.attackerCode}:${op.defenderCode}:${op.operationType}`
+      )
+      .sort()
+      .join("|");
+    const riskKey = warHotspots
+      .filter((h) => h.probability >= 48 || h.status === "WAR")
+      .map((h) => `${h.countryA}-${h.countryB}:${h.status}:${h.probability >= 72 ? 2 : 1}`)
+      .sort()
+      .join("|");
+    const pRiskKey = Object.entries(playerRisks)
+      .filter(([, r]) => r.probability >= 48)
+      .map(([code, r]) => `${code}:${r.probability >= 72 ? 2 : 1}`)
+      .sort()
+      .join("|");
+    return `${opKey}::${riskKey}::${pRiskKey}`;
+  }, [mapMode, warOperations, warHotspots, playerRisks]);
+
+  const provinceStyleDepsRef = useRef({
     warOperations,
     warHotspots,
     playerRisks,
-    mapMode,
-    perspectiveCountryCode,
+    diplomacies,
     diplomacyLookup,
-    selectedRegionId,
-    flashedRegionIds,
-    locale,
-  ]);
+    countryByCode,
+    regionById,
+  });
+  provinceStyleDepsRef.current = {
+    warOperations,
+    warHotspots,
+    playerRisks,
+    diplomacies,
+    diplomacyLookup,
+    countryByCode,
+    regionById,
+  };
+
+  // Stage B: Fast province fill colors & occupation flags (selected/flashed handled on GPU via featureState)
+  const provinceVisualKey = useMemo(() => {
+    const baseKey = regions
+      .map((r) => `${r.regionId}:${r.ownerCountryCode}:${r.strategicStatus === "OCCUPIED" ? 1 : 0}`)
+      .join(";");
+    const diploKey = diplomacies
+      .map((d) => `${d.countryA}-${d.countryB}:${d.status}`)
+      .join(";");
+    const countryStatKey =
+      mapMode === "economy"
+        ? countries.map((c) => `${c.code}:${economyColor(c.economy ?? 25)}`).join(";")
+        : mapMode === "threat"
+          ? countries.map((c) => `${c.code}:${threatColor(c.infamy ?? 0)}`).join(";")
+          : countries.map((c) => `${c.code}:${c.color}`).join(";");
+    return `${mapMode}::${perspectiveCountryCode ?? ""}::${baseKey}::${diploKey}::${countryStatKey}::${warStyleKey}`;
+  }, [regions, countries, diplomacies, mapMode, perspectiveCountryCode, warStyleKey]);
+
+  const styledGeoJson = useMemo(() => {
+    if (!rawGeo) return null;
+    const {
+      warOperations: ops,
+      warHotspots: hotspots,
+      playerRisks: pRisks,
+      diplomacies: diploList,
+      diplomacyLookup: diploMap,
+      countryByCode: cMap,
+      regionById: rMap,
+    } = provinceStyleDepsRef.current;
+
+    const besiegedRegionSet = new Set<string>();
+    const atWarCountrySet = new Set<string>();
+    const maxRiskByCountry = new Map<string, number>();
+
+    if (mapMode === "war") {
+      const activeOps = ops.filter((op) =>
+        ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status)
+      );
+      for (const op of activeOps) {
+        besiegedRegionSet.add(op.targetRegionId);
+        if (
+          op.operationType !== "ENVOY_AGITATION" &&
+          op.operationType !== "REBEL_UPRISING"
+        ) {
+          atWarCountrySet.add(op.attackerCode);
+          atWarCountrySet.add(op.defenderCode);
+        }
+      }
+      for (const d of diploList) {
+        if (d.status === "WAR") {
+          atWarCountrySet.add(d.countryA);
+          atWarCountrySet.add(d.countryB);
+        }
+      }
+      for (const hs of hotspots) {
+        maxRiskByCountry.set(
+          hs.countryA,
+          Math.max(maxRiskByCountry.get(hs.countryA) ?? 0, hs.probability)
+        );
+        maxRiskByCountry.set(
+          hs.countryB,
+          Math.max(maxRiskByCountry.get(hs.countryB) ?? 0, hs.probability)
+        );
+      }
+    }
+
+    const styledFeatures = rawGeo.features.map((feat) => {
+      const rid = feat.properties.region_id;
+      const reg = rMap.get(rid);
+      const ownerCode = reg?.ownerCountryCode ?? "NEU";
+      const owner = cMap.get(ownerCode);
+
+      let fillColor = owner?.color ?? "#3a4b63";
+      if (mapMode === "diplomacy") {
+        const isSelf = ownerCode === perspectiveCountryCode;
+        fillColor = diplomacyColor(diploMap.get(ownerCode), isSelf);
+      } else if (mapMode === "economy") {
+        fillColor = economyColor(owner?.economy ?? 25);
+      } else if (mapMode === "threat") {
+        fillColor = threatColor(owner?.infamy ?? 0);
+      } else if (mapMode === "war") {
+        const pairRisk = Math.max(
+          pRisks[ownerCode]?.probability ?? 0,
+          maxRiskByCountry.get(ownerCode) ?? 0
+        );
+        if (besiegedRegionSet.has(rid)) {
+          fillColor = "#f97316";
+        } else if (atWarCountrySet.has(ownerCode)) {
+          fillColor = "#dc2626";
+        } else if (pairRisk >= 72) {
+          fillColor = "#ea580c";
+        } else if (pairRisk >= 48) {
+          fillColor = "#ca8a04";
+        } else {
+          fillColor = "#162033";
+        }
+      }
+
+      const isCountryHighlighted =
+        perspectiveCountryCode !== null && ownerCode === perspectiveCountryCode;
+
+      return {
+        ...feat,
+        properties: {
+          ...feat.properties,
+          ownerCode,
+          ownerName: owner?.name ?? ownerCode,
+          strategicStatus: reg?.strategicStatus ?? "CORE",
+          fillColor,
+          isOccupied: reg?.strategicStatus === "OCCUPIED" ? 1 : 0,
+          isHighlightedCountry: isCountryHighlighted ? 1 : 0,
+        },
+      };
+    });
+
+    return {
+      type: "FeatureCollection" as const,
+      features: styledFeatures,
+    };
+  }, [rawGeo, provinceVisualKey, mapMode, perspectiveCountryCode]);
 
   const capitalCoordsByCountry = useMemo(() => {
     const map = new Map<string, { lng: number; lat: number }>();
@@ -1087,14 +1366,19 @@ export function WorldMap({
             type: "fill",
             source: "provinces",
             paint: {
-              "fill-color": ["coalesce", ["get", "fillColor"], "#3a4b63"],
+              "fill-color": [
+                "case",
+                ["boolean", ["feature-state", "flashed"], false],
+                "#fde047",
+                ["coalesce", ["get", "fillColor"], "#3a4b63"],
+              ],
               "fill-opacity": [
                 "case",
                 ["boolean", ["feature-state", "hover"], false],
                 0.9,
-                ["==", ["get", "isFlashed"], 1],
+                ["boolean", ["feature-state", "flashed"], false],
                 0.94,
-                ["==", ["get", "isSelected"], 1],
+                ["boolean", ["feature-state", "selected"], false],
                 0.86,
                 0.78,
               ],
@@ -1135,20 +1419,33 @@ export function WorldMap({
             id: "province-selected-borders",
             type: "line",
             source: "provinces",
-            filter: [
-              "any",
-              ["==", ["get", "isSelected"], 1],
-              ["==", ["get", "isFlashed"], 1],
-            ],
             paint: {
               "line-color": [
                 "case",
-                ["==", ["get", "isFlashed"], 1],
+                ["boolean", ["feature-state", "flashed"], false],
                 "#fef08a",
                 "#fbbf24",
               ],
-              "line-width": 2.6,
-              "line-opacity": 1.0,
+              "line-width": [
+                "case",
+                [
+                  "any",
+                  ["boolean", ["feature-state", "selected"], false],
+                  ["boolean", ["feature-state", "flashed"], false],
+                ],
+                2.6,
+                0,
+              ],
+              "line-opacity": [
+                "case",
+                [
+                  "any",
+                  ["boolean", ["feature-state", "selected"], false],
+                  ["boolean", ["feature-state", "flashed"], false],
+                ],
+                1.0,
+                0.0,
+              ],
             },
           },
           {
@@ -1165,7 +1462,7 @@ export function WorldMap({
             id: "country-highlighted-borders",
             type: "line",
             source: "country-outlines",
-            filter: ["==", ["get", "isHighlighted"], 1],
+            filter: ["==", ["get", "ownerCode"], "__NONE__"],
             paint: {
               "line-color": "#f8fafc",
               "line-width": ["interpolate", ["linear"], ["zoom"], 1.5, 1.8, 5, 2.8],
@@ -1298,6 +1595,9 @@ export function WorldMap({
     );
 
     let hoveredId: string | null = null;
+    let lastHoverX = -999;
+    let lastHoverY = -999;
+    let hoverRafId = 0;
 
     map.on("load", () => {
       registerProceduralMapPatterns(map);
@@ -1310,38 +1610,53 @@ export function WorldMap({
       if (!feature) return;
       map.getCanvas().style.cursor = "pointer";
       const rid = String(feature.properties?.region_id ?? "");
-      if (hoveredId && hoveredId !== rid) {
+      const regionChanged = hoveredId !== rid;
+      if (hoveredId && regionChanged) {
         map.setFeatureState(
           { source: "provinces", id: hoveredId },
           { hover: false }
         );
       }
-      if (rid) {
+      if (rid && regionChanged) {
         hoveredId = rid;
         map.setFeatureState({ source: "provinces", id: rid }, { hover: true });
       }
 
-      const { countryByCode: cMap, regionById: rMap } = hoverDataRef.current;
-      const reg = rMap.get(rid);
-      const ownerCode =
-        reg?.ownerCountryCode ?? String(feature.properties?.ownerCode ?? "");
-      const owner = cMap.get(ownerCode);
+      const movedEnough =
+        Math.abs(e.point.x - lastHoverX) >= 8 ||
+        Math.abs(e.point.y - lastHoverY) >= 8;
+      if (!regionChanged && !movedEnough) return;
 
-      setHoverInfo({
-        x: e.point.x,
-        y: e.point.y,
-        regionId: rid,
-        regionName:
-          reg?.regionName ?? String(feature.properties?.region_name ?? rid),
-        ownerName: owner?.name ?? ownerCode,
-        ownerFlag: owner?.flagEmoji ?? "🏳️",
-        ownerCode,
-        strategicStatus: reg?.strategicStatus ?? "CORE",
-        baseValue: reg?.baseValue ?? 8,
+      lastHoverX = e.point.x;
+      lastHoverY = e.point.y;
+      const px = e.point.x;
+      const py = e.point.y;
+      const fallbackOwnerCode = String(feature.properties?.ownerCode ?? "");
+      const fallbackRegionName = String(feature.properties?.region_name ?? rid);
+
+      cancelAnimationFrame(hoverRafId);
+      hoverRafId = requestAnimationFrame(() => {
+        const { countryByCode: cMap, regionById: rMap } = hoverDataRef.current;
+        const reg = rMap.get(rid);
+        const ownerCode = reg?.ownerCountryCode ?? fallbackOwnerCode;
+        const owner = cMap.get(ownerCode);
+
+        overlayApiRef.current?.setHoverInfo({
+          x: px,
+          y: py,
+          regionId: rid,
+          regionName: reg?.regionName ?? fallbackRegionName,
+          ownerName: owner?.name ?? ownerCode,
+          ownerFlag: owner?.flagEmoji ?? "🏳️",
+          ownerCode,
+          strategicStatus: reg?.strategicStatus ?? "CORE",
+          baseValue: reg?.baseValue ?? 8,
+        });
       });
     });
 
     map.on("mouseleave", "province-fills", () => {
+      cancelAnimationFrame(hoverRafId);
       map.getCanvas().style.cursor = "";
       if (hoveredId) {
         map.setFeatureState(
@@ -1350,7 +1665,9 @@ export function WorldMap({
         );
         hoveredId = null;
       }
-      setHoverInfo(null);
+      lastHoverX = -999;
+      lastHoverY = -999;
+      overlayApiRef.current?.setHoverInfo(null);
     });
 
     map.on("click", "province-fills", (e: MapLayerMouseEvent) => {
@@ -1368,8 +1685,9 @@ export function WorldMap({
     mapRef.current = map;
 
     return () => {
-      for (const mk of markersMapRef.current.values()) {
-        mk.remove();
+      cancelAnimationFrame(hoverRafId);
+      for (const entry of markersMapRef.current.values()) {
+        entry.marker.remove();
       }
       markersMapRef.current.clear();
       map.remove();
@@ -1389,33 +1707,52 @@ export function WorldMap({
     });
   }, [mapReady, focusMarkerCoord]);
 
-  // Render animated AI-managed map beacons (factories, bases, summits, crisis pins)
+  // Render animated AI-managed map beacons with keyed reconciliation & pulse-ring budget cap
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
     const currentIds = new Set(mapMarkers.map((m) => m.id));
-    for (const [id, markerObj] of markersMapRef.current.entries()) {
+    for (const [id, entry] of markersMapRef.current.entries()) {
       if (!currentIds.has(id)) {
-        markerObj.remove();
+        entry.marker.remove();
         markersMapRef.current.delete(id);
       }
     }
 
     const flashSet = new Set(flashedMarkerIds);
+    let animatedPulseBudget = 0;
 
     for (const m of mapMarkers) {
-      const prev = markersMapRef.current.get(m.id);
-      if (prev) {
-        prev.remove();
-        markersMapRef.current.delete(m.id);
-      }
-
-      const theme = MARKER_THEME[m.category] ?? MARKER_THEME.INDUSTRY;
       const isHighlight =
         flashSet.has(m.id) ||
         m.status === "UNDER_CONSTRUCTION" ||
         m.status === "ALERT";
+
+      let shouldPulse = false;
+      if (isHighlight) {
+        shouldPulse = true;
+        animatedPulseBudget++;
+      } else if (
+        m.isAnimated !== false &&
+        m.status !== "COMPLETED" &&
+        animatedPulseBudget < MAX_ANIMATED_PULSE_MARKERS
+      ) {
+        shouldPulse = true;
+        animatedPulseBudget++;
+      }
+
+      const sig = `${m.lat}|${m.lng}|${m.category}|${m.status}|${m.level}|${m.title}|${m.cityName ?? ""}|${m.description}|${m.turnNumber}|${isHighlight ? 1 : 0}|${shouldPulse ? 1 : 0}`;
+      const existing = markersMapRef.current.get(m.id);
+      if (existing && existing.sig === sig) {
+        continue;
+      }
+      if (existing) {
+        existing.marker.remove();
+        markersMapRef.current.delete(m.id);
+      }
+
+      const theme = MARKER_THEME[m.category] ?? MARKER_THEME.INDUSTRY;
 
       const root = document.createElement("div");
       root.className = "pax-map-marker-root";
@@ -1427,14 +1764,16 @@ export function WorldMap({
       const stage = document.createElement("div");
       stage.className = "pax-beacon-stage";
 
-      if (m.isAnimated !== false) {
+      if (shouldPulse) {
         const ring1 = document.createElement("span");
         ring1.className = "pax-beacon-ring";
         stage.appendChild(ring1);
 
-        const ring2 = document.createElement("span");
-        ring2.className = "pax-beacon-ring pax-beacon-ring-secondary";
-        stage.appendChild(ring2);
+        if (isHighlight) {
+          const ring2 = document.createElement("span");
+          ring2.className = "pax-beacon-ring pax-beacon-ring-secondary";
+          stage.appendChild(ring2);
+        }
       }
 
       if (isHighlight) {
@@ -1444,7 +1783,9 @@ export function WorldMap({
       }
 
       const core = document.createElement("div");
-      core.className = "pax-beacon-core";
+      core.className = isHighlight
+        ? "pax-beacon-core pax-beacon-core-pulse"
+        : "pax-beacon-core";
       core.innerHTML = theme.svg;
 
       if (m.level > 1) {
@@ -1473,19 +1814,23 @@ export function WorldMap({
       root.appendChild(label);
 
       root.addEventListener("mouseenter", (ev) => {
-        setHoverInfo(null);
-        setHoveredMarker({
+        overlayApiRef.current?.setHoverInfo(null);
+        overlayApiRef.current?.setHoveredMarker({
           marker: m,
           x: ev.clientX,
           y: ev.clientY,
         });
       });
       root.addEventListener("mouseleave", () => {
-        setHoveredMarker((curr) => (curr?.marker.id === m.id ? null : curr));
+        overlayApiRef.current?.setHoveredMarker((curr) =>
+          curr?.marker.id === m.id ? null : curr
+        );
       });
       root.addEventListener("click", (ev) => {
         ev.stopPropagation();
-        setPinnedMarker((curr) => (curr?.id === m.id ? null : m));
+        overlayApiRef.current?.setPinnedMarker((curr) =>
+          curr?.id === m.id ? null : m
+        );
         if (m.regionId) {
           onSelectRef.current(m.regionId, m.countryCode);
         }
@@ -1494,7 +1839,7 @@ export function WorldMap({
       const mk = new Marker({ element: root, anchor: "center" })
         .setLngLat([m.lng, m.lat])
         .addTo(map);
-      markersMapRef.current.set(m.id, mk);
+      markersMapRef.current.set(m.id, { marker: mk, sig });
     }
   }, [mapReady, mapMarkers, flashedMarkerIds]);
 
@@ -1509,13 +1854,10 @@ export function WorldMap({
     }
   }, [mapReady, antarcticaGeo]);
 
+  // Stage A MapLibre update: ONLY runs when borders / capitals / locale change
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || !styledGeoJson) return;
-
-    (map.getSource("provinces") as GeoJSONSource | undefined)?.setData(
-      styledGeoJson as GeoJSON.FeatureCollection
-    );
+    if (!map || !mapReady) return;
     (map.getSource("country-outlines") as GeoJSONSource | undefined)?.setData(
       countryOutlinesGeoJson
     );
@@ -1530,12 +1872,75 @@ export function WorldMap({
     );
   }, [
     mapReady,
-    styledGeoJson,
     countryOutlinesGeoJson,
     countryLabelsGeoJson,
     countryCurvedLabelsGeoJson,
     capitalsGeoJson,
   ]);
+
+  // Stage B MapLibre update: province colors only
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !styledGeoJson) return;
+
+    (map.getSource("provinces") as GeoJSONSource | undefined)?.setData(
+      styledGeoJson as GeoJSON.FeatureCollection
+    );
+    if (selectedRegionId) {
+      map.setFeatureState(
+        { source: "provinces", id: selectedRegionId },
+        { selected: true }
+      );
+    }
+    for (const rid of flashedRegionIds) {
+      map.setFeatureState({ source: "provinces", id: rid }, { flashed: true });
+    }
+  }, [mapReady, styledGeoJson, selectedRegionId, flashedRegionIds]);
+
+  // 0ms GPU update for province selection border/highlight
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const prev = prevSelectedRegionRef.current;
+    if (prev && prev !== selectedRegionId) {
+      map.setFeatureState({ source: "provinces", id: prev }, { selected: false });
+    }
+    if (selectedRegionId) {
+      map.setFeatureState(
+        { source: "provinces", id: selectedRegionId },
+        { selected: true }
+      );
+    }
+    prevSelectedRegionRef.current = selectedRegionId;
+  }, [mapReady, selectedRegionId]);
+
+  // 0ms GPU update for territory capture flashes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const nextSet = new Set(flashedRegionIds);
+    for (const prevId of prevFlashedRegionsRef.current) {
+      if (!nextSet.has(prevId)) {
+        map.setFeatureState({ source: "provinces", id: prevId }, { flashed: false });
+      }
+    }
+    for (const id of flashedRegionIds) {
+      map.setFeatureState({ source: "provinces", id }, { flashed: true });
+    }
+    prevFlashedRegionsRef.current = flashedRegionIds;
+  }, [mapReady, flashedRegionIds]);
+
+  // 0ms filter update for active highlighted country border
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !map.getLayer("country-highlighted-borders")) return;
+    map.setFilter(
+      "country-highlighted-borders",
+      perspectiveCountryCode
+        ? ["==", ["get", "ownerCode"], perspectiveCountryCode]
+        : ["==", ["get", "ownerCode"], "__NONE__"]
+    );
+  }, [mapReady, perspectiveCountryCode]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1554,13 +1959,6 @@ export function WorldMap({
 
   const activeTheme =
     MAP_THEME_BY_ID[mapSettings.themeId] ?? MAP_THEME_BY_ID.pax_atlas;
-  const activeCardMarker = pinnedMarker ?? hoveredMarker?.marker ?? null;
-  const activeMarkerOwner = activeCardMarker
-    ? countryByCode.get(activeCardMarker.countryCode)
-    : undefined;
-  const activeMarkerTheme = activeCardMarker
-    ? MARKER_THEME[activeCardMarker.category] ?? MARKER_THEME.INDUSTRY
-    : null;
 
   return (
     <div
@@ -1665,135 +2063,13 @@ export function WorldMap({
         </div>
       )}
 
-      {activeCardMarker && activeMarkerTheme && (
-        <div
-          className={`${
-            pinnedMarker
-              ? "pointer-events-auto bottom-16 left-1/2 -translate-x-1/2"
-              : "pointer-events-none"
-          } absolute z-30 w-72 rounded-xl border border-border bg-[#0b111b]/95 p-3 text-xs shadow-2xl backdrop-blur-md`}
-          style={
-            pinnedMarker
-              ? undefined
-              : hoveredMarker
-                ? {
-                    left: Math.min(hoveredMarker.x + 16, window.innerWidth - 310),
-                    top: Math.max(hoveredMarker.y - 95, 68),
-                  }
-                : undefined
-          }
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-full animate-pulse"
-                  style={{ backgroundColor: activeMarkerTheme.color }}
-                />
-                <span className="font-semibold text-foreground leading-snug">
-                  {activeCardMarker.title}
-                </span>
-              </div>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-                <span>
-                  {activeMarkerOwner?.flagEmoji ?? "🏳️"}{" "}
-                  {getCountryDisplayName(
-                    activeCardMarker.countryCode,
-                    activeMarkerOwner?.name ?? activeCardMarker.countryCode,
-                    locale
-                  )}
-                </span>
-                <span>•</span>
-                <span className="text-primary font-medium">
-                  {activeCardMarker.cityName ||
-                    activeCardMarker.regionId ||
-                    (isTr ? "Stratejik Nokta" : "Strategic Point")}
-                </span>
-              </div>
-            </div>
-            {pinnedMarker && (
-              <button
-                type="button"
-                onClick={() => setPinnedMarker(null)}
-                className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-                title={isTr ? "Kapat" : "Close"}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          <p className="mt-2 text-[11px] leading-relaxed text-foreground/90">
-            {activeCardMarker.description}
-          </p>
-
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5 border-t border-border/60 pt-2 text-[10px]">
-            <span
-              className="rounded-full px-2 py-0.5 font-semibold"
-              style={{
-                backgroundColor: `${activeMarkerTheme.color}22`,
-                color: activeMarkerTheme.color,
-              }}
-            >
-              {isTr ? activeMarkerTheme.labelTr : activeMarkerTheme.labelEn} •{" "}
-              {isTr ? "Svy" : "Lv"} {activeCardMarker.level}
-            </span>
-            <span className="text-muted-foreground">
-              {MARKER_STATUS_LABEL[activeCardMarker.status]?.[locale] ??
-                activeCardMarker.status}{" "}
-              • {isTr ? "Tur" : "Turn"} {activeCardMarker.turnNumber}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {hoverInfo && !hoveredMarker && (
-        <div
-          className="pointer-events-none absolute z-30 w-56 rounded-lg border border-border bg-[#0b111b]/95 p-2.5 text-xs shadow-2xl backdrop-blur-md"
-          style={{
-            left: Math.min(hoverInfo.x + 14, window.innerWidth - 250),
-            top: Math.max(hoverInfo.y - 70, 64),
-          }}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-semibold text-foreground">
-              {hoverInfo.regionName}
-            </span>
-            <span className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-primary">
-              {hoverInfo.regionId}
-            </span>
-          </div>
-          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span>{hoverInfo.ownerFlag}</span>
-            <span className="font-medium text-foreground/90">
-              {getCountryDisplayName(
-                hoverInfo.ownerCode,
-                hoverInfo.ownerName,
-                locale
-              )}
-            </span>
-          </div>
-          <div className="mt-1.5 flex items-center justify-between border-t border-border/60 pt-1.5 text-[10px] text-muted-foreground">
-            <span>
-              {isTr ? "Statü" : "Status"}:{" "}
-              {REGION_STATUS_LABEL[hoverInfo.strategicStatus]?.[locale] ??
-                hoverInfo.strategicStatus}
-            </span>
-            <span>
-              {isTr ? "Değer" : "Value"}: {hoverInfo.baseValue}
-            </span>
-          </div>
-          {hoverInfo.ownerCode !== perspectiveCountryCode &&
-            playerRisks[hoverInfo.ownerCode] && (
-              <div className="mt-1 flex items-center justify-between rounded bg-rose-950/50 px-1.5 py-0.5 text-[10px] text-rose-200">
-                <span>{isTr ? "Savaş Olasılığı:" : "War Risk:"}</span>
-                <span className="font-mono font-bold">
-                  %{playerRisks[hoverInfo.ownerCode].probability}
-                </span>
-              </div>
-            )}
-        </div>
-      )}
+      <MapHoverOverlays
+        apiRef={overlayApiRef}
+        countryByCode={countryByCode}
+        perspectiveCountryCode={perspectiveCountryCode}
+        playerRisks={playerRisks}
+        locale={locale}
+      />
     </div>
   );
-}
+});

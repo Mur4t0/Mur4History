@@ -8,14 +8,17 @@ import Link from "next/link";
 import {
   Activity,
   ArrowLeft,
+  Bot,
   ChevronDown,
   ChevronUp,
   Compass,
+  Eraser,
   Flag,
   Flame,
   MessageSquare,
   Newspaper,
   Radio,
+  Sparkles,
   Swords,
   Users,
   Zap,
@@ -128,6 +131,8 @@ export function GameWorkspace({
   const [showCountryPanel, setShowCountryPanel] = useState(false);
   const [showChroniclePanel, setShowChroniclePanel] = useState(false);
   const [showOrderConsole, setShowOrderConsole] = useState(true);
+  const [mapCleanOpen, setMapCleanOpen] = useState(false);
+  const [cleaningMapMarkers, setCleaningMapMarkers] = useState(false);
 
   const { locale } = useLocale();
   const isTr = locale === "tr";
@@ -239,18 +244,56 @@ export function GameWorkspace({
     }
   }, [session.id]);
 
-  const refreshSession = useCallback(async () => {
-    const res = await fetch(`/api/sessions/${session.id}`, {
-      cache: "no-store",
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.session) {
-        setSession(data.session);
+  const refreshInFlightRef = useRef(false);
+  const refreshQueuedRef = useRef(false);
+  const refreshTimerRef = useRef<number | null>(null);
+
+  const runSessionRefreshNow = useCallback(async () => {
+    if (refreshInFlightRef.current) {
+      refreshQueuedRef.current = true;
+      return;
+    }
+    refreshInFlightRef.current = true;
+    try {
+      const res = await fetch(`/api/sessions/${session.id}`, {
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.session) {
+          setSession(data.session);
+        }
+      }
+      await refreshWarData();
+    } finally {
+      refreshInFlightRef.current = false;
+      if (refreshQueuedRef.current) {
+        refreshQueuedRef.current = false;
+        void runSessionRefreshNow();
       }
     }
-    void refreshWarData();
   }, [session.id, refreshWarData]);
+
+  // Coalesce burst SSE & poll refreshes so multiple events don't spam parallel SQLite reads
+  const refreshSession = useCallback(async () => {
+    if (refreshTimerRef.current !== null) {
+      window.clearTimeout(refreshTimerRef.current);
+    }
+    return new Promise<void>((resolve) => {
+      refreshTimerRef.current = window.setTimeout(() => {
+        refreshTimerRef.current = null;
+        void runSessionRefreshNow().finally(resolve);
+      }, 90);
+    });
+  }, [runSessionRefreshNow]);
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current !== null) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     void refreshWarData();
@@ -448,11 +491,22 @@ export function GameWorkspace({
         const parsed = JSON.parse((e as MessageEvent).data) as {
           payload?: {
             action?: string;
+            removedCount?: number;
             marker?: { id?: string; title?: string; cityName?: string | null };
             title?: string;
             cityName?: string | null;
           };
         };
+        if (parsed.payload?.action === "CLEANUP_STALE") {
+          const cnt = parsed.payload.removedCount ?? 0;
+          showToast(
+            trMode
+              ? `Harita temizlendi: ${cnt} gereksiz savaş/kriz işareti kaldırıldı.`
+              : `Map markers cleaned: removed ${cnt} stale clutter pins.`
+          );
+          void refreshSession();
+          return;
+        }
         const m = parsed.payload?.marker;
         const mId = m?.id;
         if (mId) {
@@ -815,6 +869,50 @@ export function GameWorkspace({
     session.diplomacies.filter((d) => d.status === "WAR").length +
     activeWarOps.length;
 
+  const allMarkers = session.mapMarkers ?? [];
+  const strategicMarkersCount = allMarkers.filter((m) =>
+    ["INDUSTRY", "MILITARY", "INFRASTRUCTURE", "NAVAL", "RESEARCH"].includes(
+      m.category
+    )
+  ).length;
+  const clutterMarkersCount = allMarkers.filter(
+    (m) =>
+      m.category === "CRISIS" ||
+      m.status === "COMPLETED" ||
+      m.status === "DAMAGED"
+  ).length;
+
+  const handleCleanMapMarkers = useCallback(
+    async (mode: "smart_clean" | "ask_ai_clean", countryCode?: string) => {
+      if (cleaningMapMarkers) return;
+      setCleaningMapMarkers(true);
+      setMapCleanOpen(false);
+      try {
+        const res = await fetch(`/api/sessions/${session.id}/markers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode,
+            countryCode,
+            locale,
+          }),
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.summary) {
+          showToast(data.summary);
+          await refreshSession();
+        } else if (data?.error) {
+          showToast(data.error);
+        }
+      } catch {
+        // Ignore transient cleanup error
+      } finally {
+        setCleaningMapMarkers(false);
+      }
+    },
+    [cleaningMapMarkers, session.id, locale, showToast, refreshSession]
+  );
+
   const handleQuickWarAction = useCallback(
     async (params: {
       mode: "provoke" | "launch_operation" | "nuclear_strike";
@@ -994,8 +1092,12 @@ export function GameWorkspace({
                   // Ignore transient network error
                 }
               }}
+              onCleanCountryMarkers={(targetCode) =>
+                handleCleanMapMarkers("smart_clean", targetCode)
+              }
               scenarioKey={session.scenarioId}
               currentDate={session.currentDate}
+              currentTurn={session.turnNumber}
             />
           </div>
         )}
@@ -1142,6 +1244,98 @@ export function GameWorkspace({
                   ? "Dünya Gazetesi"
                   : "World Gazette"}
             </button>
+
+            {allMarkers.length > 0 && (
+              <div className="relative">
+                <button
+                  type="button"
+                  data-testid="map-cleanup-btn"
+                  disabled={cleaningMapMarkers}
+                  onClick={() => setMapCleanOpen((v) => !v)}
+                  title={
+                    isTr
+                      ? "Fabrika ve askeri üsleri koruyarak haritadaki savaş/kriz işaret kalabalığını temizle"
+                      : "Clean redundant war/crisis pins while keeping strategic factories & bases"
+                  }
+                  className={`inline-flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium shadow-xl backdrop-blur-md transition cursor-pointer ${
+                    clutterMarkersCount > 0
+                      ? "border-amber-500/50 bg-[#141720]/95 text-amber-200 hover:border-amber-400"
+                      : "border-border/90 bg-[#0c1320]/90 text-foreground hover:border-primary/60"
+                  }`}
+                >
+                  <Eraser className="h-3.5 w-3.5 text-amber-300" />
+                  <span>{isTr ? "Harita Temizle" : "Clean Map"}</span>
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                      clutterMarkersCount > 0
+                        ? "bg-amber-400 text-black"
+                        : "bg-secondary text-muted-foreground"
+                    }`}
+                  >
+                    {clutterMarkersCount > 0 ? clutterMarkersCount : allMarkers.length}
+                  </span>
+                </button>
+
+                {mapCleanOpen && (
+                  <div className="absolute bottom-12 left-0 z-30 w-72 rounded-xl border border-border bg-[#0b111b]/95 p-3 text-xs shadow-2xl backdrop-blur-md">
+                    <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                      <span className="font-semibold text-foreground">
+                        {isTr ? "Harita İşaret Temizliği" : "Map Pin Cleanup"}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {isTr
+                          ? `${strategicMarkersCount} tesis • ${clutterMarkersCount} atık`
+                          : `${strategicMarkersCount} strategic • ${clutterMarkersCount} clutter`}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                      {isTr
+                        ? "Sanayi fabrikaları, askeri üsler, tersane ve Ar-Ge tesisleri korunur; birikmiş kriz/isyan ve eski kalıntılar ayıklanır."
+                        : "Preserves factories, military bases, shipyards & R&D labs while removing stale crisis/war debris."}
+                    </p>
+                    <div className="mt-2.5 flex flex-col gap-1.5">
+                      <button
+                        type="button"
+                        data-testid="smart-clean-markers-btn"
+                        disabled={cleaningMapMarkers}
+                        onClick={() => void handleCleanMapMarkers("smart_clean")}
+                        className="flex w-full items-center justify-between rounded-lg border border-emerald-500/45 bg-emerald-950/30 px-2.5 py-2 text-left text-[11px] font-semibold text-emerald-200 transition hover:bg-emerald-500/20 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                          {isTr ? "Akıllı Temizlik (Hızlı)" : "Smart Clean (Instant)"}
+                        </span>
+                        <span className="font-mono text-[10px] text-emerald-300">
+                          {clutterMarkersCount > 0 ? `-${clutterMarkersCount}` : "OK"}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        data-testid="ai-clean-markers-btn"
+                        disabled={cleaningMapMarkers}
+                        onClick={() => void handleCleanMapMarkers("ask_ai_clean")}
+                        className="flex w-full items-center justify-between rounded-lg border border-sky-500/45 bg-sky-950/30 px-2.5 py-2 text-left text-[11px] font-semibold text-sky-200 transition hover:bg-sky-500/20 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Bot className="h-3.5 w-3.5 text-sky-400" />
+                          {isTr ? "AI'ya Ayıklat (MCP)" : "Delegate to AI (MCP)"}
+                        </span>
+                        <span className="text-[10px] text-sky-300">
+                          {globalMcpStatus.connected
+                            ? isTr
+                              ? "Hazır"
+                              : "Ready"
+                            : isTr
+                              ? "Kuyruğa Al"
+                              : "Queue"}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1370,6 +1564,7 @@ export function GameWorkspace({
         }}
         scenarioKey={session.scenarioId}
         currentDate={session.currentDate}
+        currentTurn={session.turnNumber}
         difficulty={session.difficulty}
       />
 

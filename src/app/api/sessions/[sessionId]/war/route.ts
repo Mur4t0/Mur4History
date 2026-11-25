@@ -185,6 +185,20 @@ export async function POST(
           { status: 403 }
         );
       }
+      if (
+        parsed.data.operationType === "ENVOY_AGITATION" ||
+        parsed.data.operationType === "REBEL_UPRISING"
+      ) {
+        const result = await provokeNationAction({
+          sessionId,
+          actorCode: attackerCode,
+          targetCode: parsed.data.defenderCode,
+          actionType: "SPONSOR_REBELS",
+          targetRegionId: parsed.data.targetRegionId,
+          customNote: parsed.data.description,
+        });
+        return Response.json(result, { status: 201 });
+      }
       const op = await launchWarOperation({
         sessionId,
         attackerCode,
@@ -195,7 +209,7 @@ export async function POST(
         intensity: parsed.data.intensity,
         title: parsed.data.title,
         description: parsed.data.description,
-        autoDeclareWar: parsed.data.autoDeclareWar,
+        autoDeclareWar: false,
       });
       return Response.json({ operation: op }, { status: 201 });
     }

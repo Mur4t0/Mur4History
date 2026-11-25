@@ -12,6 +12,7 @@ import { clamp, safeJsonParse, sortCountryPair } from "@/lib/utils";
 import type { WarRiskSummary } from "@/lib/client-types";
 import {
   evaluatePeaceCouncilReadiness,
+  evaluateWarAttackReadiness,
   getCountryBlocsAndPacts,
   getWarDifficultyProfile,
 } from "@/lib/geopolitics";
@@ -599,7 +600,10 @@ export async function upsertDiplomacyTension(params: {
       status: nextStatus,
       tension: nextTension,
       ...(treatyName !== undefined ? { treatyName } : {}),
-      updatedTurn: turnNumber,
+      updatedTurn:
+        existing?.status === "WAR" && nextStatus === "WAR"
+          ? existing.updatedTurn
+          : turnNumber,
     },
     create: {
       sessionId,
@@ -704,6 +708,7 @@ export async function launchWarOperation(params: {
   autoDeclareWar?: boolean;
   skipAiWake?: boolean;
   isCounterAttack?: boolean;
+  bypassMobilizationGate?: boolean;
 }) {
   const {
     sessionId,
@@ -715,7 +720,8 @@ export async function launchWarOperation(params: {
     intensity = 72,
     title,
     description,
-    autoDeclareWar = true,
+    autoDeclareWar = false,
+    bypassMobilizationGate = false,
   } = params;
 
   const session = await prisma.gameSession.findUnique({
@@ -766,6 +772,32 @@ export async function launchWarOperation(params: {
                 : "INFANTRY");
 
   const isNuke = operationType === "NUCLEAR_STRIKE";
+  const isCovert = isCovertOrRebelOp(operationType);
+
+  if (
+    !isCovert &&
+    !isNuke &&
+    !params.isCounterAttack &&
+    !bypassMobilizationGate &&
+    !autoDeclareWar
+  ) {
+    const [pairA, pairB] = sortCountryPair(attackerCode, defenderCode);
+    const pairRel = await prisma.diplomacyRelation.findUnique({
+      where: {
+        sessionId_countryA_countryB: { sessionId, countryA: pairA, countryB: pairB },
+      },
+    });
+    const defLabel = getCountryDisplayName(defender.code, defender.name, locale);
+    const readiness = evaluateWarAttackReadiness({
+      currentTurn: session.turnNumber,
+      relation: pairRel,
+      targetName: defLabel,
+      locale,
+    });
+    if (!readiness.ready) {
+      throw new Error(readiness.message);
+    }
+  }
 
   if (isNuke && (attacker.nuclearWarheads ?? 0) <= 0) {
     const [allCountries, allDiplomacies] = await Promise.all([
@@ -1188,10 +1220,11 @@ export async function advanceLiveWarOperations(params: {
   const locale = getActiveMcpLocale(sessionId);
   const isTr = locale === "tr";
 
-  const [session, countries, regions, ops] = await Promise.all([
+  const [session, countries, regions, diplomacies, ops] = await Promise.all([
     prisma.gameSession.findUnique({ where: { id: sessionId } }),
     prisma.country.findMany({ where: { sessionId } }),
     prisma.regionOwnership.findMany({ where: { sessionId } }),
+    prisma.diplomacyRelation.findMany({ where: { sessionId } }),
     prisma.warOperation.findMany({
       where: {
         sessionId,
@@ -1204,6 +1237,12 @@ export async function advanceLiveWarOperations(params: {
 
   if (!session) throw new Error(`Oturum bulunamadı: ${sessionId}`);
   const prof = getWarDifficultyProfile(session.difficulty);
+  const relationByPair = new Map(
+    diplomacies.map((d) => {
+      const [a, b] = sortCountryPair(d.countryA, d.countryB);
+      return [`${a}::${b}`, d];
+    })
+  );
 
   const countryMap = new Map(countries.map((c) => [c.code, c]));
   const updatedOps = [];
@@ -1239,26 +1278,43 @@ export async function advanceLiveWarOperations(params: {
         : Math.round(140 + Math.random() * 260 + atkMil * 2.8);
 
     if (op.status === "MARCHING") {
-      nextProgress = op.progress + (isEnvoyOp ? 22 : isRebelOp ? 24 : 26);
+      const covertMarchBoost =
+        session.difficulty === "VERY_EASY"
+          ? 28
+          : session.difficulty === "EASY"
+            ? 24
+            : session.difficulty === "NORMAL"
+              ? 22
+              : 19;
+      nextProgress = op.progress + (isCovert ? covertMarchBoost : 26);
       if (nextProgress >= 36) {
         nextStatus = "BESIEGING";
       }
     } else if (isEnvoyOp) {
-      const siegeStep = Math.round(20 + op.intensity * 0.14);
-      nextProgress = clamp(op.progress + Math.max(9, siegeStep), 0, 100);
+      const envoySpeedDrag = Math.round(
+        clamp((defMil - 45) / 10, 0, 5) * prof.envoySecurityResistanceFactor * 0.5
+      );
+      const siegeStep = Math.round(20 + op.intensity * 0.14 - envoySpeedDrag);
+      nextProgress = clamp(op.progress + Math.max(8, siegeStep), 0, 100);
     } else if (isRebelOp) {
+      const rebelDrag = Math.round(
+        clamp((defMil - 42) / 7, 0, 7) * prof.envoySecurityResistanceFactor * 0.55
+      );
       const siegeStep = Math.round(
         18 +
-          Math.max(0, (100 - defStab) * 0.22) -
-          clamp((defMil - 50) / 8, 0, 6)
+          Math.max(0, (100 - defStab) * 0.2) -
+          rebelDrag
       );
-      nextProgress = clamp(op.progress + Math.max(9, siegeStep), 0, 100);
+      nextProgress = clamp(op.progress + Math.max(7, siegeStep), 0, 100);
     } else {
       // Real military siege: tug-of-war between Attacker Combat Power and Defender Garrison Power
       const targetRegForSiege = regions.find(
         (r) => r.regionId === op.targetRegionId
       );
       const regStatus = targetRegForSiege?.strategicStatus ?? "STANDARD";
+      const contestedPenalty = -Math.round(
+        16 * prof.rebelGarrisonPenaltyMultiplier
+      );
       const fortBonus =
         regStatus === "FORTIFIED"
           ? 20
@@ -1267,7 +1323,7 @@ export async function advanceLiveWarOperations(params: {
             : regStatus === "CORE"
               ? 12
               : regStatus === "CONTESTED"
-                ? -16 // Destabilized/rebel-torn province loses garrison cohesion!
+                ? contestedPenalty // Destabilized/rebel-torn province loses garrison cohesion scaled by difficulty!
                 : 8; // Intact homeland garrison defense
 
       // If defender is actively mounting a counter-offensive against attacker, front-line pressure resists siege
@@ -1386,62 +1442,129 @@ export async function advanceLiveWarOperations(params: {
       );
 
       if (isEnvoyOp) {
-        // Covert envoys NEVER capture territory — they erode stability & plant unrest
-        nextStatus = "AGITATED";
-        if (defender) {
-          const updatedDef = await prisma.country.update({
-            where: { id: defender.id },
+        const [pairA, pairB] = sortCountryPair(op.attackerCode, op.defenderCode);
+        const pairRel = relationByPair.get(`${pairA}::${pairB}`);
+        const isPairAtWar = pairRel?.status === "WAR";
+        const defSec = defMil * 0.55 + defStab * 0.45;
+        const securityScore = Math.round(defSec + (isPairAtWar ? 16 : 0));
+
+        // Counter-intelligence interception check scaled by difficulty!
+        if (securityScore >= prof.envoyCounterIntelBustThreshold) {
+          nextStatus = "REPELLED";
+          nextProgress = 0;
+          if (defender) {
+            const updatedDef = await prisma.country.update({
+              where: { id: defender.id },
+              data: {
+                stability: clamp(defender.stability + 4, 5, 96),
+              },
+            });
+            countryMap.set(defender.code, updatedDef);
+          }
+          if (attacker) {
+            const updatedAtk = await prisma.country.update({
+              where: { id: attacker.id },
+              data: {
+                infamy: clamp(attacker.infamy + 6, 0, 100),
+              },
+            });
+            countryMap.set(attacker.code, updatedAtk);
+          }
+
+          const bustEv = await prisma.worldEvent.create({
             data: {
-              stability: clamp(
-                defender.stability - prof.envoyArrivalStabilityDrop,
-                5,
-                100
-              ),
-              economy: clamp(defender.economy - 4, 5, 100),
-              warExhaustion: clamp(defender.warExhaustion + 6, 0, 100),
+              sessionId,
+              turnNumber: session.turnNumber,
+              gameDate: session.currentDate,
+              headline: isTr
+                ? `KARŞI İSTİHBARAT OPERASYONU: ${defName}, ${atkName} Gizli Elçi Hücresini Çökertti!`
+                : `COUNTER-INTEL BUST: ${defName} Exposed & Arrested ${atkName}'s Covert Envoy Cell!`,
+              articleBody: isTr
+                ? `${defName} güvenlik güçleri ${op.targetRegionName} kentindeki ${atkName} kışkırtıcı elçi ağını çökertti. Halk ayaklanması engellenirken ${atkName} diplomatik krize yol açtı.`
+                : `${defName} counter-intelligence neutralized ${atkName}'s covert agitator network in ${op.targetRegionName}, rallying public order and sparking a diplomatic backlash.`,
+              category: "CRISIS",
+              involvedCountries: JSON.stringify([op.defenderCode, op.attackerCode]),
             },
           });
-          countryMap.set(defender.code, updatedDef);
-        }
+          emitSessionEvent(sessionId, "event_published", {
+            event: { ...bustEv, involvedCountries: [op.defenderCode, op.attackerCode] },
+          });
+          significantOutcomes.push(
+            isTr
+              ? `ELÇİ HÜCRESİ YAKALANDI: ${op.defenderCode}, ${op.targetRegionName} önünde ${op.attackerCode} casuslarını yakaladı`
+              : `ENVOY RING BUSTED: ${op.defenderCode} arrested ${op.attackerCode} envoys in ${op.targetRegionName}`
+          );
+        } else {
+          // Covert envoys NEVER capture territory — they erode stability & plant unrest
+          const secMitigation = clamp(
+            ((defSec - 45) / 55) * prof.envoySecurityResistanceFactor * 0.5,
+            0,
+            0.6
+          );
+          const warDampen = isPairAtWar ? 0.55 : 1.0;
+          const actualArrivalDrop = Math.max(
+            3,
+            Math.round(prof.envoyArrivalStabilityDrop * (1 - secMitigation) * warDampen)
+          );
+          nextStatus = "AGITATED";
+          if (defender) {
+            const updatedDef = await prisma.country.update({
+              where: { id: defender.id },
+              data: {
+                stability: clamp(
+                  defender.stability - actualArrivalDrop,
+                  5,
+                  100
+                ),
+                economy: clamp(defender.economy - 3, 5, 100),
+                warExhaustion: clamp(defender.warExhaustion + 5, 0, 100),
+              },
+            });
+            countryMap.set(defender.code, updatedDef);
+          }
 
-        await upsertUnrestMapMarker({
-          sessionId,
-          defenderCode: op.defenderCode,
-          regionId: op.targetRegionId,
-          cityName: op.targetRegionName,
-          lat: op.targetLat,
-          lng: op.targetLng,
-          turnNumber: session.turnNumber,
-          gameDate: session.currentDate,
-          isUprising: false,
-          isTr,
-        });
-
-        const ev = await prisma.worldEvent.create({
-          data: {
+          await upsertUnrestMapMarker({
             sessionId,
+            defenderCode: op.defenderCode,
+            regionId: op.targetRegionId,
+            cityName: op.targetRegionName,
+            lat: op.targetLat,
+            lng: op.targetLng,
             turnNumber: session.turnNumber,
             gameDate: session.currentDate,
-            headline: isTr
-              ? `${op.targetRegionName} Sokaklarında Gizli Elçi ve Bildiri Hareketliliği!`
-              : `Clandestine Envoys Stir Crowds Inside ${op.targetRegionName}!`,
-            articleBody: isTr
-              ? `${defName} güvenlik birimleri ${op.targetRegionName} genelinde grev ve protesto çağrısı yayan yabancı elçi hücrelerini raporladı; iç istikrar sarsıldı.`
-              : `Security reports from ${defName} confirm covert envoys incited strikes and anti-regime protests across ${op.targetRegionName}, shaking public stability.`,
-            category: "CRISIS",
-            involvedCountries: JSON.stringify([op.defenderCode]),
-          },
-        });
-        emitSessionEvent(sessionId, "event_published", {
-          event: { ...ev, involvedCountries: [op.defenderCode] },
-        });
-        significantOutcomes.push(
-          isTr
-            ? `ELÇİ KIŞKIRTMASI TAMAMLANDI: ${op.targetRegionName} (${op.defenderCode} istikrarı düştü)`
-            : `ENVOY AGITATION COMPLETE: ${op.targetRegionName} (${op.defenderCode} stability dropped)`
-        );
+            isUprising: false,
+            isTr,
+          });
+
+          const ev = await prisma.worldEvent.create({
+            data: {
+              sessionId,
+              turnNumber: session.turnNumber,
+              gameDate: session.currentDate,
+              headline: isTr
+                ? `${op.targetRegionName} Sokaklarında Gizli Elçi ve Bildiri Hareketliliği!`
+                : `Clandestine Envoys Stir Crowds Inside ${op.targetRegionName}!`,
+              articleBody: isTr
+                ? `${defName} güvenlik birimleri ${op.targetRegionName} genelinde grev ve protesto çağrısı yayan yabancı elçi hücrelerini raporladı; iç istikrar sarsıldı (-${actualArrivalDrop} İstikrar).`
+                : `Security reports from ${defName} confirm covert envoys incited strikes and anti-regime protests across ${op.targetRegionName}, shaking public stability (-${actualArrivalDrop} Stability).`,
+              category: "CRISIS",
+              involvedCountries: JSON.stringify([op.defenderCode]),
+            },
+          });
+          emitSessionEvent(sessionId, "event_published", {
+            event: { ...ev, involvedCountries: [op.defenderCode] },
+          });
+          significantOutcomes.push(
+            isTr
+              ? `ELÇİ KIŞKIRTMASI TAMAMLANDI: ${op.targetRegionName} (${op.defenderCode} istikrarı düştü)`
+              : `ENVOY AGITATION COMPLETE: ${op.targetRegionName} (${op.defenderCode} stability dropped)`
+          );
+        }
       } else if (isRebelOp) {
         // Popular uprising NEVER annexes territory into attackerCode — marks province CONTESTED & shakes regime
+        const stabHit = Math.max(5, Math.round(14 * prof.rebelGarrisonPenaltyMultiplier));
+        const milHit = Math.max(6, Math.round(16 * prof.rebelGarrisonPenaltyMultiplier));
+        const econHit = Math.max(4, Math.round(10 * prof.rebelGarrisonPenaltyMultiplier));
         nextStatus = "UPRISING";
         if (targetReg && targetReg.ownerCountryCode === op.defenderCode) {
           await prisma.regionOwnership.update({
@@ -1461,10 +1584,10 @@ export async function advanceLiveWarOperations(params: {
           const updatedDef = await prisma.country.update({
             where: { id: defender.id },
             data: {
-              stability: clamp(defender.stability - 14, 5, 100),
-              military: clamp(defender.military - 16, 5, 100),
-              economy: clamp(defender.economy - 10, 5, 100),
-              warExhaustion: clamp(defender.warExhaustion + 16, 0, 100),
+              stability: clamp(defender.stability - stabHit, 5, 100),
+              military: clamp(defender.military - milHit, 5, 100),
+              economy: clamp(defender.economy - econHit, 5, 100),
+              warExhaustion: clamp(defender.warExhaustion + 14, 0, 100),
             },
           });
           countryMap.set(defender.code, updatedDef);
@@ -1625,6 +1748,7 @@ export async function advanceLiveWarOperations(params: {
           operationType: "TANK_BLITZ",
           intensity: 75,
           autoDeclareWar: true,
+          bypassMobilizationGate: true,
           skipAiWake: true,
         });
       }
@@ -1690,25 +1814,130 @@ export async function provokeNationAction(params: {
   const regionMap = getRegionMetaMap();
 
   if (actionType === "DECLARE_WAR") {
-    const op = await launchWarOperation({
+    const [pairA, pairB] = sortCountryPair(actorCode, targetCode);
+    const existingRel = await prisma.diplomacyRelation.findUnique({
+      where: {
+        sessionId_countryA_countryB: { sessionId, countryA: pairA, countryB: pairB },
+      },
+    });
+    const atkName = getCountryDisplayName(actor.code, actor.name, locale);
+    const defName = getCountryDisplayName(target.code, target.name, locale);
+
+    if (existingRel?.status === "WAR") {
+      throw new Error(
+        isTr
+          ? `${atkName} ile ${defName} arasında zaten aktif bir savaş hali mevcut!`
+          : `A formal state of war already exists between ${atkName} and ${defName}!`
+      );
+    }
+
+    await upsertDiplomacyTension({
+      sessionId,
+      countryA: actorCode,
+      countryB: targetCode,
+      status: "WAR",
+      exactTension: 100,
+      treatyName: isTr ? "Resmi Savaş İlanı" : "Formal War Declaration",
+      turnNumber: session.turnNumber,
+    });
+
+    await prisma.gameSession.update({
+      where: { id: sessionId },
+      data: { globalTension: clamp(session.globalTension + 9, 0, 100) },
+    });
+    await prisma.country.update({
+      where: { id: actor.id },
+      data: {
+        infamy: clamp(actor.infamy + 10, 0, 100),
+        warExhaustion: clamp(actor.warExhaustion + 2, 0, 100),
+      },
+    });
+
+    const joinedAllies = await triggerMutualDefenseAllies({
       sessionId,
       attackerCode: actorCode,
       defenderCode: targetCode,
-      targetRegionId,
-      operationType: "TANK_BLITZ",
-      unitType: "ARMOR",
-      intensity: 85,
-      autoDeclareWar: true,
+      turnNumber: session.turnNumber,
+      currentDate: session.currentDate,
+      locale,
     });
+
+    const unlockTurn = session.turnNumber + 1;
+    const allyNoteTr =
+      joinedAllies.length > 0
+        ? ` Savunma paktları devreye girdi: ${joinedAllies.join(", ")} savaşa katıldı.`
+        : "";
+    const allyNoteEn =
+      joinedAllies.length > 0
+        ? ` Defense pacts triggered: ${joinedAllies.join(", ")} joined the war.`
+        : "";
+
+    const warDeclEv = await prisma.worldEvent.create({
+      data: {
+        sessionId,
+        turnNumber: session.turnNumber,
+        gameDate: session.currentDate,
+        headline: isTr
+          ? `RESMİ SAVAŞ İLANI: ${atkName}, ${defName} Ülkesine Savaş İlan Etti!`
+          : `WAR DECLARED: ${atkName} Formally Declared War on ${defName}!`,
+        articleBody: isTr
+          ? `${atkName} hükümeti ${defName} yönetimine karşı resmen savaş ilan etti. Ordular sınırda seferberlik pozisyonu aldı; taarruz birlikleri 1 tur sonra (Tur ${unlockTurn}) kuşatma başlatabilecek.${allyNoteTr}`
+          : `${atkName} formally declared open war on ${defName}. Ground forces are mobilizing to the frontier and siege offensives can advance next turn (Turn ${unlockTurn}).${allyNoteEn}`,
+        category: "WAR",
+        involvedCountries: JSON.stringify([actorCode, targetCode, ...joinedAllies]),
+      },
+    });
+    emitSessionEvent(sessionId, "event_published", {
+      event: {
+        ...warDeclEv,
+        involvedCountries: [actorCode, targetCode, ...joinedAllies],
+      },
+    });
+
+    const replyCable = await prisma.diplomaticMessage.create({
+      data: {
+        sessionId,
+        turnNumber: session.turnNumber,
+        gameDate: session.currentDate,
+        fromCountryCode: targetCode,
+        toCountryCode: actorCode,
+        senderTitle: `${target.leader} (${defName})`,
+        message: isTr
+          ? `${atkName} yönetiminin savaş ilanını aldık! Ordularımızı seferber ediyoruz — sınırlarımızı sonuna kadar savunacağız.`
+          : `We have received your declaration of war! ${defName} is ordering full military mobilization to defend every province.`,
+        isFromPlayer: false,
+      },
+    });
+    emitSessionEvent(sessionId, "message_sent", { message: replyCable });
+    emitSessionEvent(sessionId, "stats_updated", { countryCode: actorCode });
+    emitSessionEvent(sessionId, "diplomatic_provocation", {
+      actionType,
+      actorCode,
+      targetCode,
+      warErupted: true,
+      probability: 100,
+    });
+
+    markBrowserSessionActive(sessionId);
+    notifyPlayerAction(
+      sessionId,
+      "WAR_ACTION",
+      isTr
+        ? `Savaş İlanı: ${actorCode} -> ${targetCode} (Seferberlik tamamlanma turu: ${unlockTurn})`
+        : `War Declaration: ${actorCode} -> ${targetCode} (Offensive unlocks Turn ${unlockTurn})`
+    );
+
     return {
       actionType,
       warErupted: true,
       newProbability: 100,
       newTension: 100,
-      operation: op,
+      declaredTurn: session.turnNumber,
+      unlockTurn,
+      operation: null,
       summary: isTr
-        ? `${actor.name}, ${target.name} üzerine resmen savaş ilan etti ve zırhlı taarruz başlattı!`
-        : `${actor.name} declared open war on ${target.name} and launched an armored blitz!`,
+        ? `${atkName}, ${defName} ülkesine resmen SAVAŞ İLAN ETTİ! Ordular seferber oluyor — 1 tur sonra (Tur ${unlockTurn}) kuşatma başlatabilirsiniz.${allyNoteTr}`
+        : `${atkName} formally DECLARED WAR on ${defName}! Armies are mobilizing — sieges unlock next turn (Turn ${unlockTurn}).${allyNoteEn}`,
     };
   }
 
@@ -1780,6 +2009,7 @@ export async function provokeNationAction(params: {
         operationType: "TANK_BLITZ",
         intensity: 76,
         autoDeclareWar: true,
+        bypassMobilizationGate: true,
         skipAiWake: true,
       });
     } else {
@@ -1799,6 +2029,7 @@ export async function provokeNationAction(params: {
             ? `${actor.name} istihbaratının körüklediği sınır olayı ${target.name} ve ${thirdCountry.name} arasında çatışmaya yol açtı!`
             : `Covert border provocation stoked clashes between ${target.name} and ${thirdCountry.name}!`),
         autoDeclareWar: false,
+        bypassMobilizationGate: true,
         skipAiWake: true,
       });
     }
@@ -1861,7 +2092,92 @@ export async function provokeNationAction(params: {
   }
 
   // Bilateral Provocations: BORDER_SKIRMISH | DIPLOMATIC_INSULT | SPONSOR_REBELS (Covert Envoy Agitation)
+  if (actorCode === targetCode) {
+    throw new Error(
+      isTr
+        ? "Bir ülke kendisine yönelik gizli kışkırtma düzenleyemez."
+        : "A nation cannot provoke or subvert itself."
+    );
+  }
+
   const prof = getWarDifficultyProfile(session.difficulty);
+
+  let dispatchDrop = prof.envoyDispatchStabilityDrop;
+  if (actionType === "SPONSOR_REBELS") {
+    const [activeCovertCount, activeMilitarySiegeCount, pairRel] =
+      await Promise.all([
+        prisma.warOperation.count({
+          where: {
+            sessionId,
+            attackerCode: actorCode,
+            defenderCode: targetCode,
+            operationType: { in: ["ENVOY_AGITATION", "REBEL_UPRISING"] },
+            status: { in: ["MARCHING", "BESIEGING", "ACTIVE"] },
+          },
+        }),
+        prisma.warOperation.count({
+          where: {
+            sessionId,
+            attackerCode: actorCode,
+            defenderCode: targetCode,
+            operationType: {
+              notIn: ["ENVOY_AGITATION", "REBEL_UPRISING", "NUCLEAR_STRIKE"],
+            },
+            status: { in: ["MARCHING", "BESIEGING", "ACTIVE"] },
+          },
+        }),
+        prisma.diplomacyRelation.findUnique({
+          where: {
+            sessionId_countryA_countryB: (() => {
+              const [a, b] = sortCountryPair(actorCode, targetCode);
+              return { sessionId, countryA: a, countryB: b };
+            })(),
+          },
+        }),
+      ]);
+
+    if (activeCovertCount > 0) {
+      throw new Error(
+        isTr
+          ? `${target.name} topraklarında halihazırda devam eden bir gizli elçi/isyan operasyonu var! Yeni hücre kurmadan önce mevcut dalganın sonuçlanmasını bekleyin.`
+          : `A covert envoy/uprising operation is already underway inside ${target.name}! Wait for the current wave to conclude before deploying another cell.`
+      );
+    }
+
+    const isAtWar = pairRel?.status === "WAR";
+    if (
+      prof.blockCovertDuringActiveSiege &&
+      (activeMilitarySiegeCount > 0 ||
+        (session.difficulty === "IMPOSSIBLE" && isAtWar))
+    ) {
+      throw new Error(
+        isTr
+          ? `Sıkıyönetim Engeli: ${target.name} üzerine aktif askeri taarruz/savaş sürerken aynı anda gizli elçi ve isyan operasyonu başlatılamaz! (${prof.difficulty})`
+          : `Wartime Martial Law Block (${prof.difficulty}): Cannot simultaneously launch covert rebellions against ${target.name} while open military assaults/warfare are underway!`
+      );
+    }
+
+    if (prof.requireEnvoyTreasury && actor.treasury < prof.envoyCost) {
+      throw new Error(
+        isTr
+          ? `Hazine yetersiz: ${prof.difficulty} zorlukta gizli elçi/isyan operasyonu için ${prof.envoyCost} bütçe gerekli (Mevcut: ${actor.treasury}).`
+          : `Insufficient treasury: ${prof.envoyCost} budget required for covert envoy/rebel operations on ${prof.difficulty} (Current: ${actor.treasury}).`
+      );
+    }
+
+    const defSec = target.military * 0.55 + target.stability * 0.45;
+    const secMitigation = clamp(
+      ((defSec - 45) / 55) * prof.envoySecurityResistanceFactor * 0.5,
+      0,
+      0.6
+    );
+    const warDampen = isAtWar ? 0.55 : 1.0;
+    dispatchDrop = Math.max(
+      2,
+      Math.round(prof.envoyDispatchStabilityDrop * (1 - secMitigation) * warDampen)
+    );
+  }
+
   const deltaMap: Record<string, number> = {
     BORDER_SKIRMISH: 26,
     DIPLOMATIC_INSULT: 22,
@@ -1879,17 +2195,13 @@ export async function provokeNationAction(params: {
 
   let updatedTargetStability = target.stability;
   if (actionType === "SPONSOR_REBELS") {
-    updatedTargetStability = clamp(
-      target.stability - prof.envoyDispatchStabilityDrop,
-      5,
-      100
-    );
+    updatedTargetStability = clamp(target.stability - dispatchDrop, 5, 100);
     await prisma.$transaction([
       prisma.country.update({
         where: { id: actor.id },
         data: {
           treasury: Math.max(0, actor.treasury - prof.envoyCost),
-          infamy: clamp(actor.infamy + 5, 0, 100),
+          infamy: clamp(actor.infamy + 6, 0, 100),
         },
       }),
       prisma.country.update({
@@ -1956,6 +2268,7 @@ export async function provokeNationAction(params: {
         ? `Kışkırtmalara öfkelenen ${target.name}, ${actor.name} üzerine karşı taarruz ve topyekûn savaş başlattı!`
         : `Outraged by repeated provocations, ${target.name} launched a retaliatory war offensive against ${actor.name}!`,
       autoDeclareWar: true,
+      bypassMobilizationGate: true,
       skipAiWake: true,
     });
   } else if (actionType === "SPONSOR_REBELS") {
@@ -2004,6 +2317,7 @@ export async function provokeNationAction(params: {
           ? `${actor.name} birlikleri sınır hattında taciz ateşi ve sıcak temas başlattı.`
           : `${actor.name} frontier units initiated live border skirmishes.`),
       autoDeclareWar: false,
+      bypassMobilizationGate: true,
       skipAiWake: true,
     });
   }

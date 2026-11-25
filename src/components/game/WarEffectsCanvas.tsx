@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import type {
   CountryRecord,
@@ -554,7 +554,7 @@ function drawNuclearDetonation(
   ctx.restore();
 }
 
-export function WarEffectsCanvas({
+export const WarEffectsCanvas = memo(function WarEffectsCanvas({
   map,
   mapReady,
   warOperations,
@@ -567,10 +567,22 @@ export function WarEffectsCanvas({
   onExpireNuke,
 }: WarEffectsCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const countryMap = useMemo(
+    () => new Map(countries.map((c) => [c.code, c])),
+    [countries]
+  );
+  const liveOps = useMemo(
+    () =>
+      warOperations.filter((op) =>
+        ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status)
+      ),
+    [warOperations]
+  );
+
   const stateRef = useRef({
-    warOperations,
+    liveOps,
     warHotspots,
-    countries,
+    countryMap,
     capitalCoordsByCountry,
     activeNukes,
     mapMode,
@@ -580,9 +592,9 @@ export function WarEffectsCanvas({
 
   useEffect(() => {
     stateRef.current = {
-      warOperations,
+      liveOps,
       warHotspots,
-      countries,
+      countryMap,
       capitalCoordsByCountry,
       activeNukes,
       mapMode,
@@ -590,9 +602,9 @@ export function WarEffectsCanvas({
       onExpireNuke,
     };
   }, [
-    warOperations,
+    liveOps,
     warHotspots,
-    countries,
+    countryMap,
     capitalCoordsByCountry,
     activeNukes,
     mapMode,
@@ -609,11 +621,12 @@ export function WarEffectsCanvas({
 
     let rafId = 0;
     let running = true;
+    let lastDrawMs = 0;
 
     const syncSize = () => {
       const parent = canvas.parentElement;
       if (!parent) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       const w = parent.clientWidth;
       const h = parent.clientHeight;
       if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
@@ -629,12 +642,12 @@ export function WarEffectsCanvas({
     const ro = new ResizeObserver(syncSize);
     if (canvas.parentElement) ro.observe(canvas.parentElement);
 
-    const drawFrame = () => {
+    const drawFrame = (forceRedraw = false) => {
       if (!running) return;
       const {
-        warOperations: ops,
+        liveOps: ops,
         warHotspots: hotspots,
-        countries: cList,
+        countryMap: cMap,
         capitalCoordsByCountry: capCoords,
         activeNukes: nukes,
         mapMode: mode,
@@ -642,18 +655,35 @@ export function WarEffectsCanvas({
         onExpireNuke: expireNuke,
       } = stateRef.current;
 
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const hasInteractiveAnim = ops.length > 0 || nukes.length > 0;
+      const hasAmbientWarLines =
+        mode === "war" &&
+        hotspots.some((h) => h.probability >= 52 || h.status === "WAR");
+      const needsAnim = hasInteractiveAnim || hasAmbientWarLines;
+
+      const perfNow = performance.now();
+      const minFrameMs = hasInteractiveAnim ? (ops.length > 8 ? 24 : 0) : 44;
+      if (!forceRedraw && minFrameMs > 0 && perfNow - lastDrawMs < minFrameMs) {
+        if (needsAnim) {
+          rafId = requestAnimationFrame(() => drawFrame(false));
+        }
+        return;
+      }
+      lastDrawMs = perfNow;
+
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       const w = canvas.width / dpr;
       const h = canvas.height / dpr;
       ctx.clearRect(0, 0, w, h);
 
-      const countryMap = new Map(cList.map((c) => [c.code, c]));
-      const nowSec = performance.now() / 1000;
-      const wallNow = Date.now();
+      if (!needsAnim) {
+        return;
+      }
 
-      const liveOps = ops.filter((op) =>
-        ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status)
-      );
+      const countryMap = cMap;
+      const nowSec = perfNow / 1000;
+      const wallNow = Date.now();
+      const liveOps = ops;
 
       // 1. Draw high-tension geopolitical risk lines in Live War mode
       if (mode === "war") {
@@ -910,24 +940,19 @@ export function WarEffectsCanvas({
         drawNuclearDetonation(ctx, pFrom, pTo, elapsed, lbl);
       }
 
-      const needsAnim =
-        liveOps.length > 0 ||
-        nukes.length > 0 ||
-        (mode === "war" && hotspots.some((h) => h.probability >= 52 || h.status === "WAR"));
-
       if (needsAnim) {
-        rafId = requestAnimationFrame(drawFrame);
+        rafId = requestAnimationFrame(() => drawFrame(false));
       }
     };
 
     const redrawOnce = () => {
       cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(drawFrame);
+      rafId = requestAnimationFrame(() => drawFrame(true));
     };
 
     map.on("move", redrawOnce);
     map.on("zoom", redrawOnce);
-    rafId = requestAnimationFrame(drawFrame);
+    rafId = requestAnimationFrame(() => drawFrame(true));
 
     return () => {
       running = false;
@@ -939,7 +964,7 @@ export function WarEffectsCanvas({
   }, [
     map,
     mapReady,
-    warOperations,
+    liveOps,
     warHotspots,
     activeNukes,
     mapMode,
@@ -953,4 +978,4 @@ export function WarEffectsCanvas({
       className="pointer-events-none absolute inset-0 z-10"
     />
   );
-}
+});
