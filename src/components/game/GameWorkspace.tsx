@@ -1076,6 +1076,7 @@ export function GameWorkspace({
           mapSettings={gameSettings.map}
           perspectiveCountryCode={activeCountryCode}
           selectedRegionId={selectedRegionId}
+          currentDate={session.currentDate}
           flashedRegionIds={flashedRegionIds}
           flashedMarkerIds={flashedMarkerIds}
           focusMarkerCoord={focusMarkerCoord}
@@ -1426,6 +1427,7 @@ export function GameWorkspace({
               regions={session.regions}
               playerCountryCode={session.playerCountryCode}
               activeHighlightCode={highlightedCountryCode}
+              currentDate={session.currentDate}
               onSelectCountry={handleFindCountry}
             />
           )}

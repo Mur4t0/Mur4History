@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Compass, MapPin, Search, Sparkles, X } from "lucide-react";
+import { Compass, MapPin, Search, Sparkles, Users, X } from "lucide-react";
 import { useLocale } from "@/components/LanguageProvider";
 import type { CountryRecord, RegionRecord } from "@/lib/client-types";
 import { getCountryDisplayName } from "@/lib/i18n";
+import { computeCountryDemographics } from "@/lib/demographics";
 
 interface CountryFinderProps {
   countries: CountryRecord[];
   regions: RegionRecord[];
   playerCountryCode: string | null;
   activeHighlightCode: string | null;
+  currentDate?: string | null;
   onSelectCountry: (countryCode: string) => void;
 }
 
@@ -34,6 +36,7 @@ export function CountryFinder({
   regions,
   playerCountryCode,
   activeHighlightCode,
+  currentDate,
   onSelectCountry,
 }: CountryFinderProps) {
   const { locale } = useLocale();
@@ -45,10 +48,12 @@ export function CountryFinder({
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const provinceCountByCode = useMemo(() => {
-    const map = new Map<string, number>();
+  const ownedRegionsByCode = useMemo(() => {
+    const map = new Map<string, RegionRecord[]>();
     for (const r of regions) {
-      map.set(r.ownerCountryCode, (map.get(r.ownerCountryCode) ?? 0) + 1);
+      const list = map.get(r.ownerCountryCode);
+      if (list) list.push(r);
+      else map.set(r.ownerCountryCode, [r]);
     }
     return map;
   }, [regions]);
@@ -56,20 +61,32 @@ export function CountryFinder({
   const survivingCountries = useMemo(
     () =>
       countries
-        .filter((c) => (provinceCountByCode.get(c.code) ?? 0) > 0)
+        .filter((c) => (ownedRegionsByCode.get(c.code)?.length ?? 0) > 0)
         .map((c) => {
           const localizedName = getCountryDisplayName(c.code, c.name, locale);
+          const owned = ownedRegionsByCode.get(c.code) ?? [];
+          const demo = computeCountryDemographics({
+            ownedRegions: owned,
+            gameDate: currentDate,
+            locale,
+          });
+          const majorityLabel = demo.majority
+            ? `${isTr ? `%${demo.majority.percent}` : `${demo.majority.percent}%`} ${demo.majority.label}`
+            : "";
           return {
             country: c,
             localizedName,
-            provinces: provinceCountByCode.get(c.code) ?? 0,
+            provinces: owned.length,
+            popFormatted: demo.formattedPopulation,
+            majorityLabel,
             normCode: normalizeSearchText(c.code),
             normLocal: normalizeSearchText(localizedName),
             normRaw: normalizeSearchText(c.name),
             normLeader: normalizeSearchText(c.leader),
+            normMajority: normalizeSearchText(demo.majority?.label ?? ""),
           };
         }),
-    [countries, provinceCountByCode, locale]
+    [countries, ownedRegionsByCode, currentDate, locale, isTr]
   );
 
   const results = useMemo(() => {
@@ -105,6 +122,8 @@ export function CountryFinder({
         score = 60;
       } else if (item.normLeader.includes(q)) {
         score = 40;
+      } else if (item.normMajority.includes(q)) {
+        score = 35;
       }
       if (score >= 0) {
         if (item.country.isMajor) score += 4;
@@ -314,13 +333,15 @@ export function CountryFinder({
                           )}
                         </div>
                         <div className="truncate text-[10px] text-muted-foreground">
-                          {entry.country.leader}
+                          {entry.country.leader} • {entry.popFormatted}
+                          {entry.majorityLabel ? ` • ${entry.majorityLabel}` : ""}
                         </div>
                       </div>
                     </div>
 
                     <div className="flex shrink-0 items-center gap-1.5 text-[10px] text-amber-300">
-                      <span className="font-mono text-muted-foreground">
+                      <span className="inline-flex items-center gap-1 font-mono text-muted-foreground">
+                        <Users className="h-2.5 w-2.5 text-emerald-400" />
                         {entry.provinces}{" "}
                         {isTr ? "eyalet" : "prov."}
                       </span>

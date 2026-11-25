@@ -11,6 +11,10 @@ import {
   evaluateWarAttackReadiness,
   getCountryBlocsAndPacts,
 } from "@/lib/geopolitics";
+import {
+  computeCountryDemographics,
+  getRegionDemographics,
+} from "@/lib/demographics";
 
 import {
   Bomb,
@@ -189,6 +193,20 @@ export function CountrySidebar({
   const ownedRegions = regions.filter(
     (r) => r.ownerCountryCode === country.code
   );
+  const countryDemographics = computeCountryDemographics({
+    ownedRegions,
+    gameDate: currentDate,
+    locale,
+  });
+  const selectedRegionDemographics = selectedRegion
+    ? getRegionDemographics({
+        regionId: selectedRegion.regionId,
+        regionName: selectedRegion.regionName,
+        baseValue: selectedRegion.baseValue,
+        gameDate: currentDate,
+        locale,
+      })
+    : null;
   const survivingCountryCodes = new Set(
     regions.map((r) => r.ownerCountryCode)
   );
@@ -687,6 +705,18 @@ export function CountrySidebar({
             </div>
             <div className="flex items-center justify-between gap-2">
               <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
+                <Users className="h-3.5 w-3.5 text-emerald-400" />
+                {isTr ? "Toplam Nüfus" : "Total Population"}
+              </span>
+              <span
+                data-testid="sidebar-population-total"
+                className="shrink-0 font-mono font-bold text-emerald-300"
+              >
+                {countryDemographics.formattedPopulation}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
                 <Radiation
                   className={`h-3.5 w-3.5 ${
                     countryWarheads > 0 ? "text-amber-400" : "text-muted-foreground"
@@ -704,6 +734,74 @@ export function CountrySidebar({
               </span>
             </div>
           </div>
+
+          {/* Population Composition & Majority People Card */}
+          {!isEliminated && countryDemographics.groups.length > 0 && (
+            <div
+              data-testid="sidebar-demographics-card"
+              className="space-y-2.5 rounded-lg border border-emerald-500/30 bg-gradient-to-br from-emerald-950/20 via-[#0f1623] to-[#0b1019] p-3 text-xs"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 font-semibold text-emerald-300">
+                  <Users className="h-3.5 w-3.5" />
+                  {isTr ? "İç Nüfus & Halk Çoğunluğu" : "Population & Majority"}
+                </span>
+                {countryDemographics.majority && (
+                  <Badge
+                    variant="secondary"
+                    data-testid="sidebar-population-majority"
+                    className="border border-emerald-500/40 bg-emerald-500/15 text-[10px] font-bold text-emerald-200"
+                  >
+                    {isTr
+                      ? `Çoğunluk: %${countryDemographics.majority.percent} ${countryDemographics.majority.label}`
+                      : `Majority: ${countryDemographics.majority.percent}% ${countryDemographics.majority.label}`}
+                  </Badge>
+                )}
+              </div>
+
+              <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-black/50 ring-1 ring-white/10">
+                {countryDemographics.groups.map((grp) => (
+                  <div
+                    key={grp.id}
+                    style={{
+                      width: `${Math.max(2, grp.percent)}%`,
+                      backgroundColor: grp.color,
+                    }}
+                    title={`${grp.label}: %${grp.percent}`}
+                  />
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 gap-1.5 pt-0.5">
+                {countryDemographics.groups.map((grp, idx) => (
+                  <div
+                    key={grp.id}
+                    className="flex items-center justify-between gap-2 text-[11px]"
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5 text-foreground/90">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: grp.color }}
+                      />
+                      <span className="truncate font-medium">
+                        {grp.label}
+                        {idx === 0 && (
+                          <span className="ml-1 text-[9px] font-bold text-emerald-300">
+                            ({isTr ? "Çoğunluk" : "Majority"})
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                      <strong className="text-foreground">
+                        {isTr ? `%${grp.percent}` : `${grp.percent}%`}
+                      </strong>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {country.description && (
             <p className="break-words text-xs leading-relaxed text-muted-foreground">
@@ -772,6 +870,24 @@ export function CountrySidebar({
                   {selectedRegion.baseValue}
                 </span>
               </div>
+              {selectedRegionDemographics && (
+                <div className="flex flex-wrap items-center justify-between gap-1 border-t border-primary/20 pt-1.5 text-[11px] text-muted-foreground">
+                  <span className="font-mono text-emerald-300">
+                    {isTr ? "Nüfus" : "Pop"}: {selectedRegionDemographics.formattedPopulation}
+                  </span>
+                  {selectedRegionDemographics.majority && (
+                    <span className="text-foreground/90">
+                      {isTr ? "Çoğunluk" : "Majority"}:{" "}
+                      <strong>
+                        {isTr
+                          ? `%${selectedRegionDemographics.majority.percent}`
+                          : `${selectedRegionDemographics.majority.percent}%`}{" "}
+                        {selectedRegionDemographics.majority.label}
+                      </strong>
+                    </span>
+                  )}
+                </div>
+              )}
               {selectedRegion.transferReason && (
                 <div className="mt-1 rounded bg-secondary/70 p-1.5 text-[11px] text-amber-300">
                   {isTr

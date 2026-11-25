@@ -737,6 +737,24 @@ async function run() {
       !countriesAfterAnnex.some((c) => c.country_id === "BGR"),
       "Expected eliminated BGR to be excluded from MCP countries resource"
     );
+    const gerDemoEntry = countriesAfterAnnex.find((c) => c.country_id === "GER");
+    assert.ok(
+      gerDemoEntry && gerDemoEntry.population_millions > 50,
+      `Expected 1936 GER population > 50M, got: ${gerDemoEntry?.population_millions}`
+    );
+    assert.equal(
+      gerDemoEntry.majority_people?.id,
+      "german",
+      `Expected GER majority_people to be german, got: ${gerDemoEntry.majority_people?.id}`
+    );
+    const turDemoEntry = countriesAfterAnnex.find((c) => c.country_id === "TUR");
+    assert.ok(
+      turDemoEntry &&
+        turDemoEntry.population_millions > 15 &&
+        Array.isArray(turDemoEntry.demographics) &&
+        turDemoEntry.demographics.some((d) => d.id === "bulgarian"),
+      `Expected TUR after conquering BGR to include bulgarian group in demographics, got: ${JSON.stringify(turDemoEntry?.demographics)}`
+    );
 
     const worldStateUri = resList.resources.find((r) => r.uri.endsWith("/world-state"))?.uri;
     assert.ok(worldStateUri, "Expected world-state resource URI");

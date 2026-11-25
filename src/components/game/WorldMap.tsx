@@ -35,6 +35,7 @@ import {
   buildCurvedLabelAxis,
   registerProceduralMapPatterns,
 } from "@/lib/map-patterns";
+import { getRegionDemographics } from "@/lib/demographics";
 
 interface RawFeature {
   type: "Feature";
@@ -71,6 +72,7 @@ interface WorldMapProps {
   mapSettings?: MapAppearanceSettings;
   perspectiveCountryCode: string | null;
   selectedRegionId: string | null;
+  currentDate?: string | null;
   flashedRegionIds: string[];
   flashedMarkerIds?: string[];
   focusMarkerCoord?: { lng: number; lat: number; ts: number } | null;
@@ -588,12 +590,14 @@ const MapHoverOverlays = memo(function MapHoverOverlays({
   countryByCode,
   perspectiveCountryCode,
   playerRisks,
+  currentDate,
   locale,
 }: {
   apiRef: MutableRefObject<OverlayHudApi | null>;
   countryByCode: Map<string, CountryRecord>;
   perspectiveCountryCode: string | null;
   playerRisks: Record<string, WarRiskSummary>;
+  currentDate?: string | null;
   locale: "tr" | "en";
 }) {
   const isTr = locale === "tr";
@@ -743,6 +747,29 @@ const MapHoverOverlays = memo(function MapHoverOverlays({
               {isTr ? "Değer" : "Value"}: {hoverInfo.baseValue}
             </span>
           </div>
+          {(() => {
+            const hoverDemo = getRegionDemographics({
+              regionId: hoverInfo.regionId,
+              regionName: hoverInfo.regionName,
+              baseValue: hoverInfo.baseValue,
+              gameDate: currentDate,
+              locale,
+            });
+            return (
+              <div className="mt-1 flex items-center justify-between gap-2 rounded bg-emerald-950/35 px-1.5 py-0.5 text-[10px] text-emerald-200">
+                <span className="font-mono font-semibold">
+                  👥 {hoverDemo.formattedPopulation}
+                </span>
+                {hoverDemo.majority && (
+                  <span className="truncate text-emerald-300/90">
+                    {isTr
+                      ? `%${hoverDemo.majority.percent} ${hoverDemo.majority.label}`
+                      : `${hoverDemo.majority.percent}% ${hoverDemo.majority.label}`}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
           {hoverInfo.ownerCode !== perspectiveCountryCode &&
             playerRisks[hoverInfo.ownerCode] && (
               <div className="mt-1 flex items-center justify-between rounded bg-rose-950/50 px-1.5 py-0.5 text-[10px] text-rose-200">
@@ -775,6 +802,7 @@ export const WorldMap = memo(function WorldMap({
   mapSettings = DEFAULT_GAME_SETTINGS.map,
   perspectiveCountryCode,
   selectedRegionId,
+  currentDate = null,
   flashedRegionIds,
   flashedMarkerIds = [],
   focusMarkerCoord = null,
@@ -2295,6 +2323,7 @@ export const WorldMap = memo(function WorldMap({
         countryByCode={countryByCode}
         perspectiveCountryCode={perspectiveCountryCode}
         playerRisks={playerRisks}
+        currentDate={currentDate}
         locale={locale}
       />
     </div>

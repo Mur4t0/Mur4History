@@ -32,6 +32,7 @@ import {
   isNuclearEraDate,
   isTreatyEligibleForNuclearSharing,
 } from "@/lib/nuclear-doctrine";
+import { computeCountryDemographics } from "@/lib/demographics";
 import {
   advanceDateByInterval,
   advanceDateMonths,
@@ -689,32 +690,63 @@ export async function readCountriesResource(
 ) {
   await ensureSessionNuclearSeeded(sessionId);
   const locale = explicitLocale ?? getActiveMcpLocale(sessionId);
-  const [countries, regions] = await Promise.all([
+  const [sessionMeta, countries, regions] = await Promise.all([
+    prisma.gameSession.findUnique({
+      where: { id: sessionId },
+      select: { currentDate: true },
+    }),
     prisma.country.findMany({
       where: { sessionId },
       orderBy: [{ isMajor: "desc" }, { economy: "desc" }],
     }),
     prisma.regionOwnership.findMany({
       where: { sessionId },
-      select: { ownerCountryCode: true, baseValue: true },
+      select: {
+        regionId: true,
+        regionName: true,
+        ownerCountryCode: true,
+        baseValue: true,
+      },
     }),
   ]);
 
-  const counts = new Map<string, { provinces: number; totalValue: number }>();
+  const counts = new Map<
+    string,
+    {
+      provinces: number;
+      totalValue: number;
+      owned: Array<{ regionId: string; regionName: string; baseValue: number }>;
+    }
+  >();
   for (const r of regions) {
     const entry = counts.get(r.ownerCountryCode) ?? {
       provinces: 0,
       totalValue: 0,
+      owned: [],
     };
     entry.provinces += 1;
     entry.totalValue += r.baseValue;
+    entry.owned.push({
+      regionId: r.regionId,
+      regionName: r.regionName,
+      baseValue: r.baseValue,
+    });
     counts.set(r.ownerCountryCode, entry);
   }
 
   return countries
     .filter((c) => (counts.get(c.code)?.provinces ?? 0) > 0)
     .map((c) => {
-      const stats = counts.get(c.code) ?? { provinces: 0, totalValue: 0 };
+      const stats = counts.get(c.code) ?? {
+        provinces: 0,
+        totalValue: 0,
+        owned: [],
+      };
+      const demo = computeCountryDemographics({
+        ownedRegions: stats.owned,
+        gameDate: sessionMeta?.currentDate,
+        locale,
+      });
       return {
         country_id: c.code,
         name: getCountryDisplayName(c.code, c.name, locale),
@@ -731,6 +763,24 @@ export async function readCountriesResource(
         is_major: c.isMajor,
         province_count: stats.provinces,
         territory_strategic_value: stats.totalValue,
+        population_millions: demo.totalPopulationMillions,
+        population_formatted: demo.formattedPopulation,
+        majority_people: demo.majority
+          ? {
+              id: demo.majority.id,
+              name: demo.majority.label,
+              percent: demo.majority.percent,
+              population_millions: Number(
+                demo.majority.populationMillions.toFixed(2)
+              ),
+            }
+          : null,
+        demographics: demo.groups.map((g) => ({
+          id: g.id,
+          name: g.label,
+          percent: g.percent,
+          population_millions: Number(g.populationMillions.toFixed(2)),
+        })),
       };
     });
 }
