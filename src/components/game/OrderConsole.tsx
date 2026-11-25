@@ -27,6 +27,7 @@ import type {
   CountryRecord,
   McpConnectionStatus,
   PendingOrderRecord,
+  RegionRecord,
 } from "@/lib/client-types";
 
 type OrderCategory =
@@ -53,6 +54,7 @@ interface OrderConsoleProps {
   playerCountryCode: string | null;
   playerCountry?: CountryRecord | null;
   countries: CountryRecord[];
+  regions?: RegionRecord[];
   orders: PendingOrderRecord[];
   awaitingAiSimulation: boolean;
   mcpStatus?: McpConnectionStatus;
@@ -70,6 +72,7 @@ export function OrderConsole({
   playerCountryCode,
   playerCountry,
   countries,
+  regions,
   orders,
   awaitingAiSimulation,
   mcpStatus,
@@ -84,6 +87,10 @@ export function OrderConsole({
   const { locale } = useLocale();
   const isTr = locale === "tr";
 
+  const survivingCountryCodes = regions
+    ? new Set(regions.map((r) => r.ownerCountryCode))
+    : null;
+
   const [content, setContent] = useState("");
   const [orderType, setOrderType] = useState<OrderCategory>("COMMAND");
   const [targetCountryCode, setTargetCountryCode] = useState<string>("");
@@ -91,11 +98,16 @@ export function OrderConsole({
   const [brainstormIdeas, setBrainstormIdeas] = useState<string[]>([]);
 
   useEffect(() => {
-    if (preselectedTargetCode && preselectedTargetCode !== playerCountryCode) {
+    if (
+      preselectedTargetCode &&
+      preselectedTargetCode !== playerCountryCode &&
+      (!survivingCountryCodes || survivingCountryCodes.has(preselectedTargetCode))
+    ) {
       setOrderType("DIPLOMACY");
       setTargetCountryCode(preselectedTargetCode);
     }
-  }, [preselectedTargetCode, playerCountryCode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preselectedTargetCode, playerCountryCode, regions]);
 
   useEffect(() => {
     if (prefillOrderText) {
@@ -111,8 +123,21 @@ export function OrderConsole({
   }, [prefillOrderText, prefillOrderCategory, onClearPrefillOrder]);
 
   const otherCountries = countries.filter(
-    (c) => c.code !== playerCountryCode
+    (c) =>
+      c.code !== playerCountryCode &&
+      (!survivingCountryCodes || survivingCountryCodes.has(c.code))
   );
+
+  useEffect(() => {
+    if (
+      targetCountryCode &&
+      survivingCountryCodes &&
+      !survivingCountryCodes.has(targetCountryCode)
+    ) {
+      setTargetCountryCode("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regions, targetCountryCode]);
 
   const handleBrainstorm = () => {
     const rawName = playerCountry?.name ?? playerCountryCode ?? "";

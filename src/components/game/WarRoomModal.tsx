@@ -127,6 +127,16 @@ export function WarRoomModal({
   const isTr = locale === "tr";
   const diffProfile = getWarDifficultyProfile(difficulty);
 
+  const survivingCountryCodes = useMemo(
+    () => new Set(regions.map((r) => r.ownerCountryCode)),
+    [regions]
+  );
+
+  const survivingCountries = useMemo(
+    () => countries.filter((c) => survivingCountryCodes.has(c.code)),
+    [countries, survivingCountryCodes]
+  );
+
   const countryByCode = useMemo(
     () => new Map(countries.map((c) => [c.code, c])),
     [countries]
@@ -134,31 +144,36 @@ export function WarRoomModal({
 
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [attackerCode, setAttackerCode] = useState<string>(
-    playerCountryCode || countries[0]?.code || "TUR"
+    playerCountryCode || survivingCountries[0]?.code || countries[0]?.code || "TUR"
   );
   const attackerCountry = countryByCode.get(attackerCode);
   const attackerWarheads = attackerCountry?.nuclearWarheads ?? 0;
   const nuclearPartners = useMemo(
-    () => findNuclearPartners(attackerCode, countries, diplomacies),
-    [attackerCode, countries, diplomacies]
+    () => findNuclearPartners(attackerCode, survivingCountries, diplomacies),
+    [attackerCode, survivingCountries, diplomacies]
   );
   const eligibleNuclearPatrons = nuclearPartners.filter((p) => p.eligible);
   const [defenderCode, setDefenderCode] = useState<string>(
-    initialTargetCode ||
-      countries.find((c) => c.code !== (playerCountryCode || "TUR"))?.code ||
-      "RUS"
+    initialTargetCode && survivingCountryCodes.has(initialTargetCode)
+      ? initialTargetCode
+      : survivingCountries.find((c) => c.code !== (playerCountryCode || "TUR"))
+          ?.code ||
+        countries.find((c) => c.code !== (playerCountryCode || "TUR"))?.code ||
+        "RUS"
   );
   const [targetRegionId, setTargetRegionId] = useState<string>("AUTO");
   const [opType, setOpType] = useState<string>("TANK_BLITZ");
 
   // Meddle (3rd-party war instigation) state
   const defaultMeddleA =
-    initialTargetCode ||
-    countries.find((c) => c.code !== playerCountryCode)?.code ||
+    (initialTargetCode && survivingCountryCodes.has(initialTargetCode)
+      ? initialTargetCode
+      : null) ||
+    survivingCountries.find((c) => c.code !== playerCountryCode)?.code ||
     "RUS";
   const [meddleA, setMeddleA] = useState<string>(defaultMeddleA);
   const [meddleB, setMeddleB] = useState<string>(
-    countries.find(
+    survivingCountries.find(
       (c) => c.code !== playerCountryCode && c.code !== defaultMeddleA
     )?.code || "UKR"
   );
@@ -172,22 +187,40 @@ export function WarRoomModal({
     if (!open) return;
     setActiveTab(initialTab);
     if (playerCountryCode) setAttackerCode(playerCountryCode);
-    if (initialTargetCode) {
+    if (initialTargetCode && survivingCountryCodes.has(initialTargetCode)) {
       setDefenderCode(initialTargetCode);
       setMeddleA(initialTargetCode);
     }
     setConfirmNuke(false);
     setTargetRegionId("AUTO");
-  }, [initialTab, initialTargetCode, open, playerCountryCode]);
+  }, [initialTab, initialTargetCode, open, playerCountryCode, survivingCountryCodes]);
 
   useEffect(() => {
-    if (meddleA === meddleB) {
-      const alt = countries.find(
+    if (defenderCode && !survivingCountryCodes.has(defenderCode)) {
+      const nextDef = survivingCountries.find(
+        (c) => c.code !== attackerCode && c.code !== playerCountryCode
+      )?.code;
+      if (nextDef) setDefenderCode(nextDef);
+    }
+  }, [defenderCode, survivingCountryCodes, survivingCountries, attackerCode, playerCountryCode]);
+
+  useEffect(() => {
+    if (meddleA && !survivingCountryCodes.has(meddleA)) {
+      const nextA = survivingCountries.find(
+        (c) => c.code !== playerCountryCode
+      )?.code;
+      if (nextA) setMeddleA(nextA);
+    }
+    if (
+      meddleA === meddleB ||
+      (meddleB && !survivingCountryCodes.has(meddleB))
+    ) {
+      const alt = survivingCountries.find(
         (c) => c.code !== playerCountryCode && c.code !== meddleA
       )?.code;
       if (alt) setMeddleB(alt);
     }
-  }, [meddleA, meddleB, countries, playerCountryCode]);
+  }, [meddleA, meddleB, survivingCountries, survivingCountryCodes, playerCountryCode]);
 
   const defenderRegions = useMemo(
     () => regions.filter((r) => r.ownerCountryCode === defenderCode),
@@ -196,19 +229,22 @@ export function WarRoomModal({
 
   const sortedCountries = useMemo(
     () =>
-      [...countries].sort((a, b) => {
+      [...survivingCountries].sort((a, b) => {
         if (a.isMajor !== b.isMajor) return a.isMajor ? -1 : 1;
         return b.economy - a.economy;
       }),
-    [countries]
+    [survivingCountries]
   );
 
   const activeOperations = useMemo(
     () =>
-      warOperations.filter((op) =>
-        ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status)
+      warOperations.filter(
+        (op) =>
+          ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status) &&
+          survivingCountryCodes.has(op.attackerCode) &&
+          survivingCountryCodes.has(op.defenderCode)
       ),
-    [warOperations]
+    [warOperations, survivingCountryCodes]
   );
 
   const recentCompleted = useMemo(
@@ -395,6 +431,12 @@ export function WarRoomModal({
     }
     return Array.from(mergedMap.values())
       .filter((item) => {
+        if (
+          !survivingCountryCodes.has(item.countryA) ||
+          !survivingCountryCodes.has(item.countryB)
+        ) {
+          return false;
+        }
         if (!q) return true;
         const nameA = getCountryDisplayName(
           item.countryA,

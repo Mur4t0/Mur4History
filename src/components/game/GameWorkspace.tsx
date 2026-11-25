@@ -706,8 +706,14 @@ export function GameWorkspace({
   }, [session.id, refreshSession, showToast, triggerNukeVisual]);
 
   // Live Real-Time Auto-Battle Ticker: marches armies, advances sieges, captures territory!
-  const activeWarOpsCount = (session.warOperations ?? []).filter((w) =>
-    ["MARCHING", "BESIEGING", "ACTIVE"].includes(w.status)
+  const survivingForTicker = new Set(
+    session.regions.map((r) => r.ownerCountryCode)
+  );
+  const activeWarOpsCount = (session.warOperations ?? []).filter(
+    (w) =>
+      ["MARCHING", "BESIEGING", "ACTIVE"].includes(w.status) &&
+      survivingForTicker.has(w.attackerCode) &&
+      survivingForTicker.has(w.defenderCode)
   ).length;
   useEffect(() => {
     if (!autoBattleEnabled || activeWarOpsCount === 0) return;
@@ -852,8 +858,14 @@ export function GameWorkspace({
   const selectedRegion =
     session.regions.find((r) => r.regionId === selectedRegionId) ?? null;
 
+  const survivingCountryCodes = new Set(
+    session.regions.map((r) => r.ownerCountryCode)
+  );
   const pendingLeaderRepliesCount = (session.leaderChats ?? []).filter(
-    (m) => m.senderRole === "PLAYER" && m.status === "PENDING_REPLY"
+    (m) =>
+      m.senderRole === "PLAYER" &&
+      m.status === "PENDING_REPLY" &&
+      survivingCountryCodes.has(m.countryCode)
   ).length;
   const openCouncilsCount = (session.councils ?? []).filter(
     (c) => c.status === "OPEN"
@@ -862,12 +874,19 @@ export function GameWorkspace({
   const pendingAdvisorCount = (session.advisorChats ?? []).filter(
     (m) => m.senderRole === "PLAYER" && m.status === "PENDING_REPLY"
   ).length;
-  const activeWarOps = (session.warOperations ?? []).filter((op) =>
-    ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status)
+  const activeWarOps = (session.warOperations ?? []).filter(
+    (op) =>
+      ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status) &&
+      survivingCountryCodes.has(op.attackerCode) &&
+      survivingCountryCodes.has(op.defenderCode)
   );
   const liveWarsCount =
-    session.diplomacies.filter((d) => d.status === "WAR").length +
-    activeWarOps.length;
+    session.diplomacies.filter(
+      (d) =>
+        d.status === "WAR" &&
+        survivingCountryCodes.has(d.countryA) &&
+        survivingCountryCodes.has(d.countryB)
+    ).length + activeWarOps.length;
 
   const allMarkers = session.mapMarkers ?? [];
   const strategicMarkersCount = allMarkers.filter((m) =>
@@ -1442,6 +1461,7 @@ export function GameWorkspace({
           playerCountryCode={session.playerCountryCode}
           playerCountry={playerCountry}
           countries={session.countries}
+          regions={session.regions}
           orders={session.orders}
           awaitingAiSimulation={session.awaitingAiSimulation}
           mcpStatus={session.mcpStatus}
@@ -1473,6 +1493,7 @@ export function GameWorkspace({
         sessionId={session.id}
         playerCountryCode={session.playerCountryCode}
         countries={session.countries}
+        regions={session.regions}
         diplomacies={session.diplomacies}
         leaderChats={session.leaderChats ?? []}
         councils={session.councils ?? []}

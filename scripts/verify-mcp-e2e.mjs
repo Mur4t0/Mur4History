@@ -700,6 +700,103 @@ async function run() {
     );
     console.log("Instant Buffered WAR_ACTION Wakeup on Province Capture verified!");
 
+    // Eliminated Nation & Ghost-War Cleanup Checks (BGR now holds 0 provinces):
+    const postAnnexStateRes = await fetch(`${BASE}/api/sessions/${sessionId}`);
+    assert.equal(postAnnexStateRes.status, 200);
+    const postAnnexState = (await postAnnexStateRes.json()).session;
+    const bgrOwned = postAnnexState.regions.filter(
+      (r) => r.ownerCountryCode === "BGR"
+    );
+    assert.equal(bgrOwned.length, 0, "Expected BGR to hold 0 provinces after conquest");
+    const bgrGhostWars = postAnnexState.diplomacies.filter(
+      (d) =>
+        (d.countryA === "BGR" || d.countryB === "BGR") &&
+        d.status !== "NEUTRAL"
+    );
+    assert.equal(
+      bgrGhostWars.length,
+      0,
+      `Expected eliminated BGR to have 0 non-NEUTRAL relations/wars, got: ${JSON.stringify(bgrGhostWars)}`
+    );
+    const bgrActiveOps = (postAnnexState.warOperations ?? []).filter(
+      (op) =>
+        (op.attackerCode === "BGR" || op.defenderCode === "BGR") &&
+        ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status)
+    );
+    assert.equal(
+      bgrActiveOps.length,
+      0,
+      `Expected eliminated BGR to have 0 active war operations, got: ${bgrActiveOps.length}`
+    );
+
+    const countriesUri = resList.resources.find((r) => r.uri.endsWith("/countries"))?.uri;
+    assert.ok(countriesUri, "Expected countries resource URI");
+    const countriesAfterAnnexRes = await mcpClient.readResource({ uri: countriesUri });
+    const countriesAfterAnnex = JSON.parse(countriesAfterAnnexRes.contents[0].text);
+    assert.ok(
+      !countriesAfterAnnex.some((c) => c.country_id === "BGR"),
+      "Expected eliminated BGR to be excluded from MCP countries resource"
+    );
+
+    const worldStateUri = resList.resources.find((r) => r.uri.endsWith("/world-state"))?.uri;
+    assert.ok(worldStateUri, "Expected world-state resource URI");
+    const worldAfterAnnexRes = await mcpClient.readResource({ uri: worldStateUri });
+    const worldAfterAnnex = JSON.parse(worldAfterAnnexRes.contents[0].text);
+    assert.ok(
+      !(worldAfterAnnex.activeWars ?? []).some(
+        (w) => w.countryA === "BGR" || w.countryB === "BGR"
+      ),
+      "Expected eliminated BGR to be absent from world-state activeWars"
+    );
+
+    const deadChatRes = await fetch(`${BASE}/api/sessions/${sessionId}/leader-chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targetCountryCode: "BGR",
+        content: "Bu mesaj silinen devlete gitmemeli.",
+      }),
+    });
+    assert.equal(
+      deadChatRes.status,
+      400,
+      `Expected 400 when messaging eliminated BGR leader, got: ${deadChatRes.status}`
+    );
+
+    const deadCouncilRes = await fetch(`${BASE}/api/sessions/${sessionId}/councils`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Hayalet Zirvesi",
+        topic: "Elendiği halde davet testi",
+        councilType: "COUNCIL",
+        participantCountryCodes: ["BGR"],
+        openingMessage: "Test",
+      }),
+    });
+    assert.equal(
+      deadCouncilRes.status,
+      400,
+      `Expected 400 when inviting eliminated BGR to council, got: ${deadCouncilRes.status}`
+    );
+
+    const deadWarRes = await fetch(`${BASE}/api/sessions/${sessionId}/war`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "launch_operation",
+        attackerCode: "TUR",
+        defenderCode: "BGR",
+        operationType: "TANK_BLITZ",
+      }),
+    });
+    assert.equal(
+      deadWarRes.status,
+      400,
+      `Expected 400 when attacking eliminated BGR, got: ${deadWarRes.status}`
+    );
+    console.log("Eliminated Nation Cleanup & Ghost-War/Chat/Council Rejection verified!");
+
     // Verify player cannot hijack foreign nation military via UI /war route (403)
     const hijackRes = await fetch(`${BASE}/api/sessions/${sessionId}/war`, {
       method: "POST",

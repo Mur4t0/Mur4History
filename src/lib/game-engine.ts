@@ -23,6 +23,7 @@ import { getAllWorldRegions } from "@/lib/geo-regions";
 import { resolveMarkerCoordinates } from "@/lib/geo-cities";
 import {
   advanceLiveWarOperations,
+  cleanupEliminatedNations,
   launchWarOperation,
   transferNuclearWarheads,
 } from "@/lib/war-engine";
@@ -395,8 +396,21 @@ export async function ensureSessionNuclearSeeded(sessionId: string) {
   }
 }
 
+/** Return set of country codes that still hold at least one province in the session. */
+async function getSurvivingCountryCodesSet(sessionId: string): Promise<Set<string>> {
+  const rows = await prisma.regionOwnership.groupBy({
+    by: ["ownerCountryCode"],
+    where: { sessionId },
+    _count: { regionId: true },
+  });
+  return new Set(
+    rows.filter((r) => r._count.regionId > 0).map((r) => r.ownerCountryCode)
+  );
+}
+
 export async function getFullSessionState(sessionId: string) {
   await ensureSessionNuclearSeeded(sessionId);
+  await cleanupEliminatedNations({ sessionId, publishEvent: false });
 
   const existingCheck = await prisma.gameSession.findUnique({
     where: { id: sessionId },
@@ -561,11 +575,15 @@ export async function readWorldStateResource(
   explicitLocale?: AppLocale
 ) {
   await ensureSessionNuclearSeeded(sessionId);
+  await cleanupEliminatedNations({ sessionId, publishEvent: false });
   const session = await prisma.gameSession.findUnique({
     where: { id: sessionId },
     include: {
       scenario: true,
       diplomacies: true,
+      regions: {
+        select: { ownerCountryCode: true },
+      },
       countries: {
         select: {
           code: true,
@@ -579,6 +597,7 @@ export async function readWorldStateResource(
   if (!session) throw new Error(`Oturum bulunamadı: ${sessionId}`);
 
   const locale = explicitLocale ?? getActiveMcpLocale(sessionId);
+  const survivingCodes = new Set(session.regions.map((r) => r.ownerCountryCode));
   const countryNames = new Map(
     session.countries.map((c) => [
       c.code,
@@ -586,7 +605,12 @@ export async function readWorldStateResource(
     ])
   );
   const activeWars = session.diplomacies
-    .filter((d) => d.status === "WAR")
+    .filter(
+      (d) =>
+        d.status === "WAR" &&
+        survivingCodes.has(d.countryA) &&
+        survivingCodes.has(d.countryB)
+    )
     .map((d) => ({
       countryA: d.countryA,
       countryAName: countryNames.get(d.countryA) ?? d.countryA,
@@ -596,7 +620,12 @@ export async function readWorldStateResource(
     }));
 
   const alliances = session.diplomacies
-    .filter((d) => d.status === "ALLIANCE")
+    .filter(
+      (d) =>
+        d.status === "ALLIANCE" &&
+        survivingCodes.has(d.countryA) &&
+        survivingCodes.has(d.countryB)
+    )
     .map((d) => ({
       countryA: d.countryA,
       countryB: d.countryB,
@@ -682,26 +711,28 @@ export async function readCountriesResource(
     counts.set(r.ownerCountryCode, entry);
   }
 
-  return countries.map((c) => {
-    const stats = counts.get(c.code) ?? { provinces: 0, totalValue: 0 };
-    return {
-      country_id: c.code,
-      name: getCountryDisplayName(c.code, c.name, locale),
-      leader: c.leader,
-      ideology: c.ideology,
-      economy: c.economy,
-      military: c.military,
-      stability_percent: c.stability,
-      treasury: c.treasury,
-      infamy: c.infamy,
-      war_exhaustion: c.warExhaustion,
-      nuclear_warheads: c.nuclearWarheads,
-      capital_region_id: c.capitalRegionId,
-      is_major: c.isMajor,
-      province_count: stats.provinces,
-      territory_strategic_value: stats.totalValue,
-    };
-  });
+  return countries
+    .filter((c) => (counts.get(c.code)?.provinces ?? 0) > 0)
+    .map((c) => {
+      const stats = counts.get(c.code) ?? { provinces: 0, totalValue: 0 };
+      return {
+        country_id: c.code,
+        name: getCountryDisplayName(c.code, c.name, locale),
+        leader: c.leader,
+        ideology: c.ideology,
+        economy: c.economy,
+        military: c.military,
+        stability_percent: c.stability,
+        treasury: c.treasury,
+        infamy: c.infamy,
+        war_exhaustion: c.warExhaustion,
+        nuclear_warheads: c.nuclearWarheads,
+        capital_region_id: c.capitalRegionId,
+        is_major: c.isMajor,
+        province_count: stats.provinces,
+        territory_strategic_value: stats.totalValue,
+      };
+    });
 }
 
 export async function readMapOwnershipResource(sessionId: string) {
@@ -959,6 +990,9 @@ export async function toolTransferTerritory(params: {
     }
   }
 
+  // If transferring these provinces left any nation with 0 provinces, wipe its active wars/ops/open council seats
+  await cleanupEliminatedNations({ sessionId, publishEvent: true });
+
   return {
     transferredCount: updated.length,
     newOwnerCountryCode: ownerCode,
@@ -1067,6 +1101,16 @@ export async function toolManageDiplomacy(params: {
   const codeB = await resolveCountryCode(sessionId, country_b);
   if (codeA === codeB) {
     throw new Error("Bir ülke kendisiyle diplomatik ilişki kuramaz.");
+  }
+
+  if (relation_status !== "NEUTRAL") {
+    const surviving = await getSurvivingCountryCodesSet(sessionId);
+    if (!surviving.has(codeA) || !surviving.has(codeB)) {
+      const deadCode = !surviving.has(codeA) ? codeA : codeB;
+      throw new Error(
+        `Haritadan silinmiş / 0 eyaletli ülke (${deadCode}) ile ${relation_status} durumu başlatılamaz.`
+      );
+    }
   }
 
   const [a, b] = sortCountryPair(codeA, codeB);
@@ -1549,11 +1593,33 @@ export async function sendPlayerLeaderChat(params: {
   }
 
   const targetCode = await resolveCountryCode(sessionId, targetCountryCode);
-  const playerCountry = await prisma.country.findUnique({
-    where: {
-      sessionId_code: { sessionId, code: session.playerCountryCode },
-    },
-  });
+  const [playerCountry, targetCountry, targetRegionCount] = await Promise.all([
+    prisma.country.findUnique({
+      where: {
+        sessionId_code: { sessionId, code: session.playerCountryCode },
+      },
+    }),
+    prisma.country.findUnique({
+      where: {
+        sessionId_code: { sessionId, code: targetCode },
+      },
+    }),
+    prisma.regionOwnership.count({
+      where: { sessionId, ownerCountryCode: targetCode },
+    }),
+  ]);
+
+  if (targetRegionCount === 0) {
+    const locale = getActiveMcpLocale(sessionId);
+    const targetDisp = targetCountry
+      ? getCountryDisplayName(targetCountry.code, targetCountry.name, locale)
+      : targetCode;
+    throw new Error(
+      locale === "tr"
+        ? `${targetDisp} fethedilip haritadan silindiği / başka bir ülkeye katıldığı için (0 eyalet) liderlik hattı kapalıdır.`
+        : `Diplomatic hotline closed: ${targetDisp} has been annexed/eliminated (0 provinces remaining).`
+    );
+  }
 
   const created = await prisma.leaderChatMessage.create({
     data: {
@@ -1604,6 +1670,7 @@ export async function readPendingLeaderChatsResource(sessionId: string) {
   });
   if (!session) throw new Error(`Oturum bulunamadı: ${sessionId}`);
 
+  const survivingCodes = await getSurvivingCountryCodesSet(sessionId);
   const countryMap = new Map(session.countries.map((c) => [c.code, c]));
   const playerCountry = session.playerCountryCode
     ? countryMap.get(session.playerCountryCode)
@@ -1611,6 +1678,7 @@ export async function readPendingLeaderChatsResource(sessionId: string) {
   const byCountry = new Map<string, typeof session.leaderChats>();
 
   for (const msg of session.leaderChats) {
+    if (!survivingCodes.has(msg.countryCode)) continue;
     const arr = byCountry.get(msg.countryCode) ?? [];
     arr.push(msg);
     byCountry.set(msg.countryCode, arr);
@@ -1697,6 +1765,15 @@ export async function toolReplyLeaderChat(params: {
   if (!session) throw new Error(`Oturum bulunamadı: ${sessionId}`);
 
   const targetCode = await resolveCountryCode(sessionId, target_country_id);
+  const targetRegionCount = await prisma.regionOwnership.count({
+    where: { sessionId, ownerCountryCode: targetCode },
+  });
+  if (targetRegionCount === 0) {
+    await cleanupEliminatedNations({ sessionId, publishEvent: false });
+    throw new Error(
+      `Haritadan silinmiş / 0 eyaletli ülke (${targetCode}) adına lider cevabı gönderilemez.`
+    );
+  }
   const country = await prisma.country.findUniqueOrThrow({
     where: { sessionId_code: { sessionId, code: targetCode } },
   });
@@ -1799,14 +1876,39 @@ export async function createPlayerCouncil(params: {
     throw new Error("Konsey toplamak için önce ülkenizi seçmelisiniz.");
   }
 
+  const survivingCodes = await getSurvivingCountryCodesSet(sessionId);
+  const locale = getActiveMcpLocale(sessionId);
   const resolvedParticipants = new Set<string>([session.playerCountryCode]);
+  const eliminatedNames: string[] = [];
   for (const raw of participantCountryCodes) {
     const code = await resolveCountryCode(sessionId, raw);
+    if (!survivingCodes.has(code)) {
+      const c = await prisma.country.findUnique({
+        where: { sessionId_code: { sessionId, code } },
+        select: { name: true },
+      });
+      eliminatedNames.push(
+        c ? getCountryDisplayName(code, c.name, locale) : code
+      );
+      continue;
+    }
     resolvedParticipants.add(code);
   }
 
+  if (eliminatedNames.length > 0) {
+    throw new Error(
+      locale === "tr"
+        ? `Haritadan silinmiş / başka bir ülkeye katılmış ülkeler konseylere davet edilemez: ${eliminatedNames.join(", ")}`
+        : `Cannot invite eliminated/annexed nation(s) with 0 provinces to a council: ${eliminatedNames.join(", ")}`
+    );
+  }
+
   if (resolvedParticipants.size < 2) {
-    throw new Error("Bir konsey için en az 1 yabancı ülke seçmelisiniz.");
+    throw new Error(
+      locale === "tr"
+        ? "Bir konsey için hayatta olan en az 1 yabancı ülke seçmelisiniz."
+        : "Select at least 1 active foreign nation to convene a council."
+    );
   }
 
   const playerCountry = await prisma.country.findUnique({
@@ -2029,14 +2131,42 @@ export async function toolConveneDiplomaticCouncil(params: {
 
   const countryMap = new Map(session.countries.map((c) => [c.code, c]));
   const initCode = await resolveCountryCode(sessionId, initiator_country_id);
+  const survivingCodes = await getSurvivingCountryCodesSet(sessionId);
+
+  if (!survivingCodes.has(initCode)) {
+    throw new Error(
+      `Haritadan silinmiş / 0 eyaletli ülke (${initCode}) diplomatik konsey başlatamaz.`
+    );
+  }
 
   const participantSet = new Set<string>([initCode]);
-  if (session.playerCountryCode) participantSet.add(session.playerCountryCode);
+  if (session.playerCountryCode && survivingCodes.has(session.playerCountryCode)) {
+    participantSet.add(session.playerCountryCode);
+  }
+  const eliminatedParticipants: string[] = [];
   for (const p of participant_country_ids) {
-    participantSet.add(await resolveCountryCode(sessionId, p));
+    const code = await resolveCountryCode(sessionId, p);
+    if (!survivingCodes.has(code)) {
+      eliminatedParticipants.push(code);
+      continue;
+    }
+    participantSet.add(code);
   }
   for (const st of opening_statements) {
-    participantSet.add(await resolveCountryCode(sessionId, st.country_id));
+    const code = await resolveCountryCode(sessionId, st.country_id);
+    if (!survivingCodes.has(code)) {
+      eliminatedParticipants.push(code);
+      continue;
+    }
+    participantSet.add(code);
+  }
+
+  if (eliminatedParticipants.length > 0 && participantSet.size < 2) {
+    throw new Error(
+      `Konseye katılacak hayatta ülke kalmadı (silinmiş: ${Array.from(
+        new Set(eliminatedParticipants)
+      ).join(", ")}).`
+    );
   }
 
   const council = await prisma.diplomacyCouncil.create({

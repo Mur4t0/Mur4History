@@ -189,6 +189,10 @@ export function CountrySidebar({
   const ownedRegions = regions.filter(
     (r) => r.ownerCountryCode === country.code
   );
+  const survivingCountryCodes = new Set(
+    regions.map((r) => r.ownerCountryCode)
+  );
+  const isEliminated = ownedRegions.length === 0;
   const countryMarkers = mapMarkers.filter(
     (m) => m.countryCode === country.code
   );
@@ -198,9 +202,12 @@ export function CountrySidebar({
   const playerWarheads = playerCountryCode
     ? (countryMap.get(playerCountryCode)?.nuclearWarheads ?? 0)
     : 0;
+  const activeAllCountries = allCountries.filter((c) =>
+    survivingCountryCodes.has(c.code)
+  );
   const nuclearPartners = findNuclearPartners(
     playerCountryCode,
-    allCountries,
+    activeAllCountries,
     diplomacies
   );
   const eligibleNuclearPatron = nuclearPartners.find((p) => p.eligible) ?? null;
@@ -213,6 +220,7 @@ export function CountrySidebar({
     : undefined;
   const canAskInspectedCountryForNuke =
     !isPlayerCountry &&
+    !isEliminated &&
     countryWarheads > 1 &&
     isTreatyEligibleForNuclearSharing(playerRelationWithInspected);
 
@@ -223,11 +231,15 @@ export function CountrySidebar({
     locale,
   });
 
-  const relations = diplomacies.filter(
-    (d) =>
-      (d.countryA === country.code || d.countryB === country.code) &&
-      d.status !== "NEUTRAL"
-  );
+  const relations = isEliminated
+    ? []
+    : diplomacies.filter(
+        (d) =>
+          (d.countryA === country.code || d.countryB === country.code) &&
+          d.status !== "NEUTRAL" &&
+          survivingCountryCodes.has(d.countryA) &&
+          survivingCountryCodes.has(d.countryB)
+      );
 
   const countryBlocs = getCountryBlocsAndPacts({
     countryCode: country.code,
@@ -265,6 +277,11 @@ export function CountrySidebar({
                     {isTr ? "SİZİN ÜLKENİZ" : "YOUR NATION"}
                   </Badge>
                 )}
+                {isEliminated && (
+                  <Badge variant="destructive" data-testid="sidebar-eliminated-badge">
+                    {isTr ? "HARİTADAN SİLİNDİ (0 EYALET)" : "ELIMINATED (0 PROVINCES)"}
+                  </Badge>
+                )}
               </div>
               {countryBlocs.length > 0 && (
                 <div
@@ -287,7 +304,7 @@ export function CountrySidebar({
           </div>
         </div>
 
-        {!isPlayerCountry && playerCountryCode && (
+        {!isPlayerCountry && playerCountryCode && !isEliminated && (
           <div className="mt-3 space-y-1.5">
             <Button
               size="sm"
@@ -321,12 +338,22 @@ export function CountrySidebar({
             </div>
           </div>
         )}
+        {isEliminated && (
+          <div
+            data-testid="sidebar-eliminated-notice"
+            className="mt-3 rounded-lg border border-rose-500/35 bg-rose-500/10 px-2.5 py-2 text-[11px] text-rose-200"
+          >
+            {isTr
+              ? "Bu devlet tamamen fethedildiği veya başka bir ülkeye katıldığı için diplomatik hatları ve orduları lağvedilmiştir."
+              : "This nation has been annexed/eliminated from the map; all diplomatic channels and active armies have been dissolved."}
+          </div>
+        )}
       </div>
 
       <ScrollArea className="flex-1 min-w-0">
         <div className="space-y-4 p-4 pr-3.5">
           {/* War Risk & Instant Provocation / Strike Console for Foreign Countries */}
-          {!isPlayerCountry && playerCountryCode && warRiskWithPlayer && (
+          {!isPlayerCountry && playerCountryCode && warRiskWithPlayer && !isEliminated && (
             <div
               data-testid="sidebar-war-risk-card"
               className="space-y-2.5 rounded-lg border border-rose-500/35 bg-gradient-to-br from-rose-950/30 via-[#101624] to-[#0b1019] p-3 text-xs"

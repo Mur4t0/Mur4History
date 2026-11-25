@@ -450,20 +450,27 @@ export async function computeSessionWarRisks(
     arr.push(r.regionId);
     regionsByOwner.set(r.ownerCountryCode, arr);
   }
+  const survivingCodes = new Set<string>();
+  for (const [code, rids] of regionsByOwner.entries()) {
+    if (rids.length > 0) survivingCodes.add(code);
+  }
 
   const relationByPair = new Map<string, DiplomacyLike>();
   for (const d of diplomacies) {
+    if (!survivingCodes.has(d.countryA) || !survivingCodes.has(d.countryB)) {
+      continue;
+    }
     const [a, b] = sortCountryPair(d.countryA, d.countryB);
     relationByPair.set(`${a}::${b}`, d);
   }
 
   const playerRisks: Record<string, WarRiskSummary> = {};
-  if (activeFocus && countryByCode.has(activeFocus)) {
+  if (activeFocus && countryByCode.has(activeFocus) && survivingCodes.has(activeFocus)) {
     const focusCountry = countryByCode.get(activeFocus)!;
     const focusRegions = regionsByOwner.get(activeFocus) ?? [];
 
     for (const c of countries) {
-      if (c.code === activeFocus) continue;
+      if (c.code === activeFocus || !survivingCodes.has(c.code)) continue;
       const [a, b] = sortCountryPair(activeFocus, c.code);
       const rel = relationByPair.get(`${a}::${b}`) ?? null;
       const adjacent = checkBorderProximity(
@@ -482,12 +489,13 @@ export async function computeSessionWarRisks(
     }
   }
 
-  // Global hotspots: inspect explicit relations + top major powers + bordering rivals
+  // Global hotspots: inspect explicit relations + top major powers + bordering rivals (surviving sovereign states only)
   const seenHotspots = new Set<string>();
   const globalHotspots: WarRiskSummary[] = [];
 
   const evaluatePair = (code1: string, code2: string) => {
     if (code1 === code2) return;
+    if (!survivingCodes.has(code1) || !survivingCodes.has(code2)) return;
     const [a, b] = sortCountryPair(code1, code2);
     const key = `${a}::${b}`;
     if (seenHotspots.has(key)) return;
@@ -522,7 +530,7 @@ export async function computeSessionWarRisks(
     evaluatePair(d.countryA, d.countryB);
   }
   const majorCodes = countries
-    .filter((c) => c.isMajor || c.infamy >= 15)
+    .filter((c) => survivingCodes.has(c.code) && (c.isMajor || c.infamy >= 15))
     .slice(0, 26)
     .map((c) => c.code);
   for (let i = 0; i < majorCodes.length; i++) {
@@ -536,18 +544,25 @@ export async function computeSessionWarRisks(
   const playerWarheads = activeFocus
     ? (countryByCode.get(activeFocus)?.nuclearWarheads ?? 0)
     : 0;
+  const survivingCountries = countries.filter((c) => survivingCodes.has(c.code));
+  const survivingDiplomacies = diplomacies.filter(
+    (d) => survivingCodes.has(d.countryA) && survivingCodes.has(d.countryB)
+  );
   const nuclearPartners = findNuclearPartners(
     activeFocus,
-    countries,
-    diplomacies
+    survivingCountries,
+    survivingDiplomacies
   );
 
   return {
     sessionId,
     globalTension: session.globalTension,
-    activeWarsCount: diplomacies.filter((d) => d.status === "WAR").length,
-    activeOperationsCount: warOps.filter((w) =>
-      ["MARCHING", "BESIEGING", "ACTIVE"].includes(w.status)
+    activeWarsCount: survivingDiplomacies.filter((d) => d.status === "WAR").length,
+    activeOperationsCount: warOps.filter(
+      (w) =>
+        ["MARCHING", "BESIEGING", "ACTIVE"].includes(w.status) &&
+        survivingCodes.has(w.attackerCode) &&
+        survivingCodes.has(w.defenderCode)
     ).length,
     playerWarheads,
     nuclearEra: isNuclearEraDate(session.currentDate),
@@ -560,6 +575,190 @@ export async function computeSessionWarRisks(
       updatedAt: w.updatedAt.toISOString(),
     })),
   };
+}
+
+/**
+ * Clean up all diplomatic statuses (WAR, ALLIANCE, etc.), active military operations,
+ * pending leader replies, and open council seats referencing countries whose provinces
+ * dropped to 0 (completely conquered / annexed / eliminated from the map).
+ */
+export async function cleanupEliminatedNations(params: {
+  sessionId: string;
+  publishEvent?: boolean;
+}) {
+  const { sessionId, publishEvent = false } = params;
+  const [regionGroups, nonNeutralDiplos, activeOps, openCouncils, pendingChats] =
+    await Promise.all([
+      prisma.regionOwnership.groupBy({
+        by: ["ownerCountryCode"],
+        where: { sessionId },
+        _count: { regionId: true },
+      }),
+      prisma.diplomacyRelation.findMany({
+        where: { sessionId, status: { not: "NEUTRAL" } },
+      }),
+      prisma.warOperation.findMany({
+        where: {
+          sessionId,
+          status: { in: ["MARCHING", "BESIEGING", "ACTIVE"] },
+        },
+        select: { id: true, attackerCode: true, defenderCode: true },
+      }),
+      prisma.diplomacyCouncil.findMany({
+        where: { sessionId, status: "OPEN" },
+        select: { id: true, participantCodes: true },
+      }),
+      prisma.leaderChatMessage.findMany({
+        where: { sessionId, senderRole: "PLAYER", status: "PENDING_REPLY" },
+        select: { id: true, countryCode: true },
+      }),
+    ]);
+
+  const survivingCodes = new Set(
+    regionGroups
+      .filter((g) => g._count.regionId > 0)
+      .map((g) => g.ownerCountryCode)
+  );
+  if (survivingCodes.size === 0) return { eliminatedCodes: [] as string[] };
+
+  const staleDiploIds = nonNeutralDiplos
+    .filter(
+      (d) => !survivingCodes.has(d.countryA) || !survivingCodes.has(d.countryB)
+    )
+    .map((d) => d.id);
+
+  const staleOpIds = activeOps
+    .filter(
+      (o) =>
+        !survivingCodes.has(o.attackerCode) || !survivingCodes.has(o.defenderCode)
+    )
+    .map((o) => o.id);
+
+  const staleChatIds = pendingChats
+    .filter((m) => !survivingCodes.has(m.countryCode))
+    .map((m) => m.id);
+
+  const councilsToUpdate: Array<{
+    id: string;
+    nextParticipants: string[];
+    close: boolean;
+  }> = [];
+  const deadCodesSeen = new Set<string>();
+
+  for (const d of nonNeutralDiplos) {
+    if (!survivingCodes.has(d.countryA)) deadCodesSeen.add(d.countryA);
+    if (!survivingCodes.has(d.countryB)) deadCodesSeen.add(d.countryB);
+  }
+  for (const o of activeOps) {
+    if (!survivingCodes.has(o.attackerCode)) deadCodesSeen.add(o.attackerCode);
+    if (!survivingCodes.has(o.defenderCode)) deadCodesSeen.add(o.defenderCode);
+  }
+  for (const m of pendingChats) {
+    if (!survivingCodes.has(m.countryCode)) deadCodesSeen.add(m.countryCode);
+  }
+  for (const c of openCouncils) {
+    const codes = safeJsonParse<string[]>(c.participantCodes, []);
+    const deadInCouncil = codes.filter((code) => !survivingCodes.has(code));
+    if (deadInCouncil.length > 0) {
+      for (const dc of deadInCouncil) deadCodesSeen.add(dc);
+      const next = codes.filter((code) => survivingCodes.has(code));
+      councilsToUpdate.push({
+        id: c.id,
+        nextParticipants: next,
+        close: next.length < 2,
+      });
+    }
+  }
+
+  if (
+    staleDiploIds.length === 0 &&
+    staleOpIds.length === 0 &&
+    staleChatIds.length === 0 &&
+    councilsToUpdate.length === 0
+  ) {
+    return { eliminatedCodes: Array.from(deadCodesSeen) };
+  }
+
+  if (staleDiploIds.length > 0) {
+    await prisma.diplomacyRelation.updateMany({
+      where: { sessionId, id: { in: staleDiploIds } },
+      data: { status: "NEUTRAL", tension: 0, treatyName: null },
+    });
+    emitSessionEvent(sessionId, "diplomacy_updated", {
+      eliminatedCleaned: staleDiploIds.length,
+    });
+  }
+
+  if (staleOpIds.length > 0) {
+    await prisma.warOperation.updateMany({
+      where: { sessionId, id: { in: staleOpIds } },
+      data: { status: "REPELLED", progress: 0 },
+    });
+    emitSessionEvent(sessionId, "war_operation_updated", {
+      eliminatedCleaned: staleOpIds.length,
+    });
+  }
+
+  if (staleChatIds.length > 0) {
+    await prisma.leaderChatMessage.updateMany({
+      where: { sessionId, id: { in: staleChatIds } },
+      data: { status: "DELIVERED" },
+    });
+  }
+
+  for (const cu of councilsToUpdate) {
+    await prisma.diplomacyCouncil.update({
+      where: { id: cu.id },
+      data: {
+        participantCodes: JSON.stringify(cu.nextParticipants),
+        ...(cu.close ? { status: "COLLAPSED" } : {}),
+      },
+    });
+  }
+  if (councilsToUpdate.length > 0) {
+    emitSessionEvent(sessionId, "council_updated", {
+      eliminatedCleaned: councilsToUpdate.length,
+    });
+  }
+
+  if (publishEvent && deadCodesSeen.size > 0 && staleDiploIds.length > 0) {
+    const locale = getActiveMcpLocale(sessionId);
+    const isTr = locale === "tr";
+    const [sessionRow, deadCountries] = await Promise.all([
+      prisma.gameSession.findUnique({
+        where: { id: sessionId },
+        select: { turnNumber: true, currentDate: true },
+      }),
+      prisma.country.findMany({
+        where: { sessionId, code: { in: Array.from(deadCodesSeen) } },
+      }),
+    ]);
+    if (sessionRow && deadCountries.length > 0) {
+      const deadNames = deadCountries
+        .map((c) => getCountryDisplayName(c.code, c.name, locale))
+        .join(", ");
+      const ev = await prisma.worldEvent.create({
+        data: {
+          sessionId,
+          turnNumber: sessionRow.turnNumber,
+          gameDate: sessionRow.currentDate,
+          headline: isTr
+            ? `DEVLET HARİTADAN SİLİNDİ: ${deadNames} Tamamen Fethedildi!`
+            : `NATION ELIMINATED: ${deadNames} Completely Annexed from the Map!`,
+          articleBody: isTr
+            ? `Son eyaletlerini kaybeden ${deadNames} fiilen sona erdi. Kalan aktif savaşlar, ittifaklar ve diplomatik kanallar kapatıldı.`
+            : `Having lost its final territory, ${deadNames} ceased to exist as a sovereign state. Former wars, treaties, and diplomatic channels were closed.`,
+          category: "WAR",
+          involvedCountries: JSON.stringify(Array.from(deadCodesSeen)),
+        },
+      });
+      emitSessionEvent(sessionId, "event_published", {
+        event: { ...ev, involvedCountries: Array.from(deadCodesSeen) },
+      });
+    }
+  }
+
+  return { eliminatedCodes: Array.from(deadCodesSeen) };
 }
 
 /** Upsert bilateral tension/status cleanly without duplicating Prisma boilerplate. */
@@ -739,14 +938,28 @@ export async function launchWarOperation(params: {
     );
   }
 
-  const [attacker, defender] = await Promise.all([
+  const [attacker, defender, atkProvsCount, defProvsCount] = await Promise.all([
     prisma.country.findUniqueOrThrow({
       where: { sessionId_code: { sessionId, code: attackerCode } },
     }),
     prisma.country.findUniqueOrThrow({
       where: { sessionId_code: { sessionId, code: defenderCode } },
     }),
+    prisma.regionOwnership.count({
+      where: { sessionId, ownerCountryCode: attackerCode },
+    }),
+    prisma.regionOwnership.count({
+      where: { sessionId, ownerCountryCode: defenderCode },
+    }),
   ]);
+
+  if (atkProvsCount === 0 || defProvsCount === 0) {
+    throw new Error(
+      isTr
+        ? "Haritadan silinmiş / fethedilmiş bir ülkeyle askeri harekat yürütülemez!"
+        : "Cannot launch military operations involving an eliminated nation with 0 provinces!"
+    );
+  }
 
   const coords = await resolveBattleCoordinates({
     sessionId,
@@ -1711,6 +1924,9 @@ export async function advanceLiveWarOperations(params: {
       const remainingDefenderProvs = await prisma.regionOwnership.count({
         where: { sessionId, ownerCountryCode: op.defenderCode },
       });
+      if (remainingDefenderProvs === 0) {
+        await cleanupEliminatedNations({ sessionId, publishEvent: true });
+      }
       const existingActiveAgainstDef = await prisma.warOperation.count({
         where: {
           sessionId,
@@ -1802,14 +2018,28 @@ export async function provokeNationAction(params: {
   const locale = getActiveMcpLocale(sessionId);
   const isTr = locale === "tr";
 
-  const [actor, target] = await Promise.all([
+  const [actor, target, actorProvCount, targetProvCount] = await Promise.all([
     prisma.country.findUniqueOrThrow({
       where: { sessionId_code: { sessionId, code: actorCode } },
     }),
     prisma.country.findUniqueOrThrow({
       where: { sessionId_code: { sessionId, code: targetCode } },
     }),
+    prisma.regionOwnership.count({
+      where: { sessionId, ownerCountryCode: actorCode },
+    }),
+    prisma.regionOwnership.count({
+      where: { sessionId, ownerCountryCode: targetCode },
+    }),
   ]);
+
+  if (actorProvCount === 0 || targetProvCount === 0) {
+    throw new Error(
+      isTr
+        ? "Haritadan silinmiş / fethedilmiş bir devletle savaş veya kışkırtma işlemi yapılamaz!"
+        : "Cannot declare war or run provocations involving an eliminated nation with 0 provinces!"
+    );
+  }
 
   const regionMap = getRegionMetaMap();
 
@@ -2827,14 +3057,27 @@ export async function attemptDirectCeasefireAction(params: {
   }
 
   const enemyCode = countryA === playerCode ? countryB : countryA;
-  const player = session.countries.find((c) => c.code === playerCode);
-  const enemy = session.countries.find((c) => c.code === enemyCode);
+  const [player, enemy, enemyRegionCount] = await Promise.all([
+    Promise.resolve(session.countries.find((c) => c.code === playerCode)),
+    Promise.resolve(session.countries.find((c) => c.code === enemyCode)),
+    prisma.regionOwnership.count({
+      where: { sessionId, ownerCountryCode: enemyCode },
+    }),
+  ]);
   if (!player || !enemy) {
     throw new Error(isTr ? "Ülke verisi bulunamadı." : "Country record not found.");
   }
+  const enemyDisp = getCountryDisplayName(enemy.code, enemy.name, locale);
+  if (enemyRegionCount === 0) {
+    await cleanupEliminatedNations({ sessionId, publishEvent: false });
+    throw new Error(
+      isTr
+        ? `${enemyDisp} tamamen fethedilip haritadan silindiği için ateşkes müzakeresi başlatılamaz.`
+        : `${enemyDisp} has been completely annexed and eliminated from the map — no ceasefire is needed.`
+    );
+  }
 
   const prof = getWarDifficultyProfile(session.difficulty);
-  const enemyDisp = getCountryDisplayName(enemy.code, enemy.name, locale);
   const playerAdvantage = player.military - enemy.military;
   const effectiveExhaustion =
     enemy.warExhaustion + Math.max(0, playerAdvantage * 0.7) + Math.max(0, (55 - enemy.stability) * 0.4);
@@ -2897,7 +3140,7 @@ export async function convenePeaceCouncilAction(params: {
   customTopic?: string;
 }) {
   const { sessionId, countryA, countryB, customTopic } = params;
-  const [session, diplomacies, existingCouncils] = await Promise.all([
+  const [session, diplomacies, existingCouncils, regionCounts] = await Promise.all([
     prisma.gameSession.findUnique({
       where: { id: sessionId },
       include: { countries: true },
@@ -2907,8 +3150,24 @@ export async function convenePeaceCouncilAction(params: {
       where: { sessionId, status: "OPEN" },
       include: { messages: { orderBy: { createdAt: "asc" } } },
     }),
+    prisma.regionOwnership.groupBy({
+      by: ["ownerCountryCode"],
+      where: { sessionId },
+      _count: { regionId: true },
+    }),
   ]);
   if (!session) throw new Error(`Oturum bulunamadı: ${sessionId}`);
+
+  const survivingCodes = new Set(
+    regionCounts.filter((g) => g._count.regionId > 0).map((g) => g.ownerCountryCode)
+  );
+  if (!survivingCodes.has(countryA) || !survivingCodes.has(countryB)) {
+    throw new Error(
+      getActiveMcpLocale(sessionId) === "en"
+        ? "Cannot convene a Peace Council for a conquered nation that no longer owns territory on the map!"
+        : "Haritadan silinmiş / tamamen fethedilmiş bir ülke için Barış Konseyi toplanamaz!"
+    );
+  }
 
   const locale = getActiveMcpLocale(sessionId);
   const isTr = locale === "tr";

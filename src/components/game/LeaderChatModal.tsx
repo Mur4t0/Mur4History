@@ -51,6 +51,7 @@ import type {
   DiplomacyCouncilRecord,
   DiplomacyRecord,
   LeaderChatMessageRecord,
+  RegionRecord,
 } from "@/lib/client-types";
 
 interface LeaderChatModalProps {
@@ -59,6 +60,7 @@ interface LeaderChatModalProps {
   sessionId: string;
   playerCountryCode: string | null;
   countries: CountryRecord[];
+  regions?: RegionRecord[];
   diplomacies: DiplomacyRecord[];
   leaderChats: LeaderChatMessageRecord[];
   councils: DiplomacyCouncilRecord[];
@@ -160,6 +162,7 @@ export function LeaderChatModal({
   sessionId,
   playerCountryCode,
   countries,
+  regions,
   diplomacies,
   leaderChats,
   councils,
@@ -174,9 +177,19 @@ export function LeaderChatModal({
   const { locale } = useLocale();
   const isTr = locale === "tr";
 
+  const survivingCountryCodes = useMemo(
+    () => (regions ? new Set(regions.map((r) => r.ownerCountryCode)) : null),
+    [regions]
+  );
+
   const otherCountries = useMemo(
-    () => countries.filter((c) => c.code !== playerCountryCode),
-    [countries, playerCountryCode]
+    () =>
+      countries.filter(
+        (c) =>
+          c.code !== playerCountryCode &&
+          (!survivingCountryCodes || survivingCountryCodes.has(c.code))
+      ),
+    [countries, playerCountryCode, survivingCountryCodes]
   );
 
   const countryByCode = useMemo(
@@ -186,7 +199,12 @@ export function LeaderChatModal({
 
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [selectedCode, setSelectedCode] = useState<string>(
-    initialTargetCode || otherCountries[0]?.code || ""
+    (initialTargetCode &&
+    (!survivingCountryCodes || survivingCountryCodes.has(initialTargetCode))
+      ? initialTargetCode
+      : null) ||
+      otherCountries[0]?.code ||
+      ""
   );
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
@@ -232,16 +250,40 @@ export function LeaderChatModal({
   }, [selectedCouncilId, open]);
 
   useEffect(() => {
-    if (open && initialTargetCode && initialTargetCode !== playerCountryCode) {
+    if (
+      open &&
+      initialTargetCode &&
+      initialTargetCode !== playerCountryCode &&
+      (!survivingCountryCodes || survivingCountryCodes.has(initialTargetCode))
+    ) {
       setSelectedCode(initialTargetCode);
     }
-  }, [open, initialTargetCode, playerCountryCode]);
+  }, [open, initialTargetCode, playerCountryCode, survivingCountryCodes]);
 
   useEffect(() => {
-    if (!selectedCode && otherCountries[0]) {
+    if (
+      (!selectedCode ||
+        (survivingCountryCodes && !survivingCountryCodes.has(selectedCode))) &&
+      otherCountries[0]
+    ) {
       setSelectedCode(otherCountries[0].code);
+    } else if (
+      selectedCode &&
+      survivingCountryCodes &&
+      !survivingCountryCodes.has(selectedCode) &&
+      !otherCountries[0]
+    ) {
+      setSelectedCode("");
     }
-  }, [selectedCode, otherCountries]);
+  }, [selectedCode, otherCountries, survivingCountryCodes]);
+
+  useEffect(() => {
+    if (!survivingCountryCodes) return;
+    setInvitedCodes((prev) => {
+      const next = prev.filter((code) => survivingCountryCodes.has(code));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [survivingCountryCodes]);
 
   useEffect(() => {
     if (!selectedCouncilId && councils[0]) {
@@ -1353,6 +1395,8 @@ export function LeaderChatModal({
                     <div className="mt-2 max-h-24 overflow-y-auto pr-1 flex flex-wrap gap-1.5">
                       {activeCouncil.participantCodes.map((code) => {
                         const c = countryByCode.get(code);
+                        const isEliminated =
+                          survivingCountryCodes && !survivingCountryCodes.has(code);
                         const cBlocs = getCountryBlocsAndPacts({
                           countryCode: code,
                           scenarioKey,
@@ -1363,7 +1407,11 @@ export function LeaderChatModal({
                         return (
                           <span
                             key={code}
-                            className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-secondary/50 px-2 py-0.5 text-[10px]"
+                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${
+                              isEliminated
+                                ? "border-border/40 bg-secondary/20 text-muted-foreground line-through opacity-60"
+                                : "border-border/70 bg-secondary/50"
+                            }`}
                           >
                             {c?.flagEmoji ?? "🏳️"}{" "}
                             {getCountryDisplayName(code, c?.name ?? code, locale)}
@@ -1384,7 +1432,10 @@ export function LeaderChatModal({
                         (d) =>
                           d.status === "WAR" &&
                           pSet.has(d.countryA) &&
-                          pSet.has(d.countryB)
+                          pSet.has(d.countryB) &&
+                          (!survivingCountryCodes ||
+                            (survivingCountryCodes.has(d.countryA) &&
+                              survivingCountryCodes.has(d.countryB)))
                       );
                       const warPair = warRels[0];
                       if (!warPair || activeCouncil.status !== "OPEN") return null;

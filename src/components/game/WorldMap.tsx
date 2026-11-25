@@ -1081,8 +1081,12 @@ export const WorldMap = memo(function WorldMap({
   // Signature for province war-coloring so minor battle progress ticks (%) do NOT trigger GeoJSON rebuilds
   const warStyleKey = useMemo(() => {
     if (mapMode !== "war") return "";
-    const activeOps = warOperations.filter((op) =>
-      ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status)
+    const surviving = new Set(regions.map((r) => r.ownerCountryCode));
+    const activeOps = warOperations.filter(
+      (op) =>
+        ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status) &&
+        surviving.has(op.attackerCode) &&
+        surviving.has(op.defenderCode)
     );
     const opKey = activeOps
       .map(
@@ -1092,17 +1096,22 @@ export const WorldMap = memo(function WorldMap({
       .sort()
       .join("|");
     const riskKey = warHotspots
-      .filter((h) => h.probability >= 48 || h.status === "WAR")
+      .filter(
+        (h) =>
+          surviving.has(h.countryA) &&
+          surviving.has(h.countryB) &&
+          (h.probability >= 48 || h.status === "WAR")
+      )
       .map((h) => `${h.countryA}-${h.countryB}:${h.status}:${h.probability >= 72 ? 2 : 1}`)
       .sort()
       .join("|");
     const pRiskKey = Object.entries(playerRisks)
-      .filter(([, r]) => r.probability >= 48)
+      .filter(([code, r]) => surviving.has(code) && r.probability >= 48)
       .map(([code, r]) => `${code}:${r.probability >= 72 ? 2 : 1}`)
       .sort()
       .join("|");
     return `${opKey}::${riskKey}::${pRiskKey}`;
-  }, [mapMode, warOperations, warHotspots, playerRisks]);
+  }, [mapMode, regions, warOperations, warHotspots, playerRisks]);
 
   const provinceStyleDepsRef = useRef({
     warOperations,
@@ -1157,8 +1166,14 @@ export const WorldMap = memo(function WorldMap({
     const maxRiskByCountry = new Map<string, number>();
 
     if (mapMode === "war") {
-      const activeOps = ops.filter((op) =>
-        ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status)
+      const survivingOwners = new Set(
+        Array.from(rMap.values()).map((r) => r.ownerCountryCode)
+      );
+      const activeOps = ops.filter(
+        (op) =>
+          ["MARCHING", "BESIEGING", "ACTIVE"].includes(op.status) &&
+          survivingOwners.has(op.attackerCode) &&
+          survivingOwners.has(op.defenderCode)
       );
       for (const op of activeOps) {
         besiegedRegionSet.add(op.targetRegionId);
@@ -1171,12 +1186,22 @@ export const WorldMap = memo(function WorldMap({
         }
       }
       for (const d of diploList) {
-        if (d.status === "WAR") {
+        if (
+          d.status === "WAR" &&
+          survivingOwners.has(d.countryA) &&
+          survivingOwners.has(d.countryB)
+        ) {
           atWarCountrySet.add(d.countryA);
           atWarCountrySet.add(d.countryB);
         }
       }
       for (const hs of hotspots) {
+        if (
+          !survivingOwners.has(hs.countryA) ||
+          !survivingOwners.has(hs.countryB)
+        ) {
+          continue;
+        }
         maxRiskByCountry.set(
           hs.countryA,
           Math.max(maxRiskByCountry.get(hs.countryA) ?? 0, hs.probability)
