@@ -1773,9 +1773,25 @@
 
     const UPDATES = [
       {
+        id: "eliminated-nation-cleanup-ghost-wars",
+        cat: "diplomacy",
+        latest: true,
+        ver: "v2.12",
+        commit: "993733c",
+        icon: "shield",
+        trCat: "ELENEN ÜLKELER & HAYALET SAVAŞ TEMİZLİĞİ",
+        enCat: "ELIMINATED NATIONS & GHOST WAR CLEANUP",
+        trTitle: "Haritadan Silinen / İlhak Edilen Ülkelerin Diplomasi, Konsey & Savaş Temizliği",
+        enTitle: "Auto-Cleanup of Eliminated Nations, Ghost Wars & Annexed Council Seats",
+        trWhat: "Bir devlet son eyaletini kaybettiğinde (fetih veya toprak transferiyle 0 eyalete düştüğünde) tüm aktif savaşları, askeri operasyonları, bekleyen lider mesajları ve açık konsey koltukları otomatik olarak temizlenir. Başkanlar sohbeti, Yeni Konsey davet listesi, Savaş Odası, Emir Konsolu, Ülke Paneli, Dünya Haritası savaş katmanı ve MCP kaynakları artık yalnızca hayatta olan (en az 1 eyaleti bulunan) ülkeleri gösterir; silinmiş devletlerle sohbet veya savaş başlatma istekleri reddedilir.",
+        enWhat: "Whenever a country loses its final province via conquest or territory transfer (0 provinces remaining), its active wars, non-neutral treaties, ongoing war operations, pending leader chats, and open council seats are automatically purged. Leader Chat, Council invites, War Room, Order Console, Country Sidebar, WorldMap war styling, and MCP resources strictly exclude eliminated states and reject requests targeting 0-province nations.",
+        trWhy: "Tamamen fethedilmiş veya topraklarımıza katılmış ülkelerin haritada hâlâ savaşta görünmesini ve liderleriyle sohbet / konsey yapılabilmesi hatasını tamamen ortadan kaldırır.",
+        enWhy: "Eliminates phantom wars and surreal diplomatic chats or summits with nations that no longer exist on the world map."
+      },
+      {
         id: "war-declaration-1-turn-mobilization",
         cat: "war",
-        latest: true,
+        latest: false,
         ver: "v2.11",
         commit: "1300acc",
         icon: "swords",
