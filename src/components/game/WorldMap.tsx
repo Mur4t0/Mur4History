@@ -74,6 +74,7 @@ interface WorldMapProps {
   flashedRegionIds: string[];
   flashedMarkerIds?: string[];
   focusMarkerCoord?: { lng: number; lat: number; ts: number } | null;
+  focusCountryRequest?: { code: string; ts: number } | null;
   onSelectRegion: (regionId: string, ownerCountryCode: string) => void;
 }
 
@@ -777,6 +778,7 @@ export const WorldMap = memo(function WorldMap({
   flashedRegionIds,
   flashedMarkerIds = [],
   focusMarkerCoord = null,
+  focusCountryRequest = null,
   onSelectRegion,
 }: WorldMapProps) {
   const { locale } = useLocale();
@@ -1495,6 +1497,39 @@ export const WorldMap = memo(function WorldMap({
             },
           },
           {
+            id: "country-search-fill",
+            type: "fill",
+            source: "provinces",
+            filter: ["==", ["get", "ownerCode"], "__NONE__"],
+            paint: {
+              "fill-color": "#fde047",
+              "fill-opacity": 0,
+            },
+          },
+          {
+            id: "country-search-glow-outer",
+            type: "line",
+            source: "country-outlines",
+            filter: ["==", ["get", "ownerCode"], "__NONE__"],
+            paint: {
+              "line-color": "#f59e0b",
+              "line-width": 12,
+              "line-blur": 8,
+              "line-opacity": 0,
+            },
+          },
+          {
+            id: "country-search-glow-inner",
+            type: "line",
+            source: "country-outlines",
+            filter: ["==", ["get", "ownerCode"], "__NONE__"],
+            paint: {
+              "line-color": "#fef08a",
+              "line-width": 3.2,
+              "line-opacity": 0,
+            },
+          },
+          {
             id: "capital-dots",
             type: "circle",
             source: "capitals",
@@ -1721,6 +1756,8 @@ export const WorldMap = memo(function WorldMap({
     };
   }, []);
 
+  const lastFocusCountryTsRef = useRef<number>(0);
+
   // Fly camera to focused marker when selected from sidebar
   useEffect(() => {
     const map = mapRef.current;
@@ -1731,6 +1768,171 @@ export const WorldMap = memo(function WorldMap({
       duration: 900,
     });
   }, [mapReady, focusMarkerCoord]);
+
+  // Teleport camera to searched nation and pulse its borders/provinces for 5 seconds
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !rawGeo || !focusCountryRequest) return;
+    if (focusCountryRequest.ts === lastFocusCountryTsRef.current) return;
+    lastFocusCountryTsRef.current = focusCountryRequest.ts;
+
+    const targetCode = focusCountryRequest.code;
+    const { countryByCode: cMap, regionById: rMap } = hoverDataRef.current;
+    const targetCountry = cMap.get(targetCode);
+    const ownedFeats = rawGeo.features.filter(
+      (f) => rMap.get(f.properties.region_id)?.ownerCountryCode === targetCode
+    );
+
+    if (ownedFeats.length > 0) {
+      const clusters = clusterContiguousFeatures(ownedFeats);
+      let focusCluster =
+        clusters.find((cl) =>
+          cl.some((f) => f.properties.region_id === targetCountry?.capitalRegionId)
+        ) ?? clusters[0];
+
+      if (!targetCountry?.capitalRegionId && clusters.length > 1) {
+        let bestArea = -1;
+        for (const cl of clusters) {
+          const a = cl.reduce(
+            (sum, f) => sum + Math.max(0.2, Number(f.properties.area_approx ?? 5)),
+            0
+          );
+          if (a > bestArea) {
+            bestArea = a;
+            focusCluster = cl;
+          }
+        }
+      }
+
+      const capFeat = targetCountry?.capitalRegionId
+        ? focusCluster.find(
+            (f) => f.properties.region_id === targetCountry.capitalRegionId
+          ) ?? focusCluster[0]
+        : focusCluster[0];
+      const capBbox = getFeatureBbox(capFeat);
+      const refLng =
+        capFeat.properties.centroid_lon ?? (capBbox[0] + capBbox[2]) / 2;
+
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+
+      for (const f of focusCluster) {
+        let [bx1, by1, bx2, by2] = getFeatureBbox(f);
+        if (bx1 - refLng > 180) {
+          bx1 -= 360;
+          bx2 -= 360;
+        } else if (bx2 - refLng < -180) {
+          bx1 += 360;
+          bx2 += 360;
+        }
+        if (bx1 < minX) minX = bx1;
+        if (bx2 > maxX) maxX = bx2;
+        if (by1 < minY) minY = by1;
+        if (by2 > maxY) maxY = by2;
+      }
+
+      if (Number.isFinite(minX) && Number.isFinite(minY)) {
+        const spanX = Math.max(0.6, maxX - minX);
+        const spanY = Math.max(0.6, maxY - minY);
+        const padX = Math.min(2.2, spanX * 0.14);
+        const padY = Math.min(1.6, spanY * 0.14);
+        map.fitBounds(
+          [
+            [minX - padX, Math.max(-75, minY - padY)],
+            [maxX + padX, Math.min(82, maxY + padY)],
+          ],
+          {
+            padding: { top: 90, bottom: 110, left: 110, right: 110 },
+            maxZoom: 5.2,
+            duration: 950,
+            essential: true,
+          }
+        );
+      }
+    }
+
+    const glowLayers = [
+      "country-search-fill",
+      "country-search-glow-outer",
+      "country-search-glow-inner",
+    ];
+    for (const lid of glowLayers) {
+      if (map.getLayer(lid)) {
+        map.setFilter(lid, ["==", ["get", "ownerCode"], targetCode]);
+      }
+    }
+
+    const GLOW_MS = 5000;
+    const startTime = performance.now();
+    let rafId = 0;
+
+    const tick = (now: number) => {
+      if (!mapRef.current) return;
+      const elapsed = now - startTime;
+      if (elapsed >= GLOW_MS) {
+        for (const lid of glowLayers) {
+          if (map.getLayer(lid)) {
+            map.setFilter(lid, ["==", ["get", "ownerCode"], "__NONE__"]);
+          }
+        }
+        if (map.getLayer("country-search-fill")) {
+          map.setPaintProperty("country-search-fill", "fill-opacity", 0);
+        }
+        if (map.getLayer("country-search-glow-outer")) {
+          map.setPaintProperty("country-search-glow-outer", "line-opacity", 0);
+        }
+        if (map.getLayer("country-search-glow-inner")) {
+          map.setPaintProperty("country-search-glow-inner", "line-opacity", 0);
+        }
+        return;
+      }
+
+      const pulse = 0.5 + 0.5 * Math.sin((elapsed / 1000) * Math.PI * 3.0);
+      const fade =
+        elapsed > GLOW_MS - 900 ? Math.max(0, (GLOW_MS - elapsed) / 900) : 1;
+
+      if (map.getLayer("country-search-fill")) {
+        map.setPaintProperty(
+          "country-search-fill",
+          "fill-opacity",
+          (0.14 + 0.28 * pulse) * fade
+        );
+      }
+      if (map.getLayer("country-search-glow-outer")) {
+        map.setPaintProperty(
+          "country-search-glow-outer",
+          "line-opacity",
+          (0.42 + 0.52 * pulse) * fade
+        );
+        map.setPaintProperty(
+          "country-search-glow-outer",
+          "line-width",
+          9 + 7 * pulse
+        );
+      }
+      if (map.getLayer("country-search-glow-inner")) {
+        map.setPaintProperty(
+          "country-search-glow-inner",
+          "line-opacity",
+          (0.65 + 0.35 * pulse) * fade
+        );
+        map.setPaintProperty(
+          "country-search-glow-inner",
+          "line-width",
+          2.8 + 1.6 * pulse
+        );
+      }
+
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(rafId);
+    };
+  }, [mapReady, rawGeo, focusCountryRequest]);
 
   // Render animated AI-managed map beacons with keyed reconciliation & pulse-ring budget cap
   useEffect(() => {

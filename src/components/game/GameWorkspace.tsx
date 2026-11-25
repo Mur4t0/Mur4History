@@ -45,6 +45,7 @@ import {
   saveGameSettings,
 } from "@/lib/map-themes";
 import { WorldMap } from "./WorldMap";
+import { CountryFinder } from "./CountryFinder";
 import type { NuclearAnimationEvent } from "./WarEffectsCanvas";
 import { TopHud } from "./TopHud";
 import { CountrySidebar } from "./CountrySidebar";
@@ -102,6 +103,14 @@ export function GameWorkspace({
     lat: number;
     ts: number;
   } | null>(null);
+  const [focusCountryRequest, setFocusCountryRequest] = useState<{
+    code: string;
+    ts: number;
+  } | null>(null);
+  const [highlightedCountryCode, setHighlightedCountryCode] = useState<
+    string | null
+  >(null);
+  const countryHighlightTimerRef = useRef<number | null>(null);
   const [liveToast, setLiveToast] = useState<string | null>(null);
 
   const [mcpModalOpen, setMcpModalOpen] = useState(false);
@@ -291,6 +300,9 @@ export function GameWorkspace({
     return () => {
       if (refreshTimerRef.current !== null) {
         window.clearTimeout(refreshTimerRef.current);
+      }
+      if (countryHighlightTimerRef.current !== null) {
+        window.clearTimeout(countryHighlightTimerRef.current);
       }
     };
   }, []);
@@ -794,6 +806,32 @@ export function GameWorkspace({
     []
   );
 
+  const handleFindCountry = useCallback(
+    (countryCode: string) => {
+      const owned = session.regions.filter(
+        (r) => r.ownerCountryCode === countryCode
+      );
+      if (owned.length === 0) return;
+      const country = session.countries.find((c) => c.code === countryCode);
+      const preferred =
+        owned.find((r) => r.regionId === country?.capitalRegionId) ?? owned[0];
+      if (preferred) {
+        setSelectedRegionId(preferred.regionId);
+      }
+      setInspectedCountryCode(countryCode);
+      setFocusCountryRequest({ code: countryCode, ts: Date.now() });
+      setHighlightedCountryCode(countryCode);
+      if (countryHighlightTimerRef.current !== null) {
+        window.clearTimeout(countryHighlightTimerRef.current);
+      }
+      countryHighlightTimerRef.current = window.setTimeout(() => {
+        setHighlightedCountryCode(null);
+        countryHighlightTimerRef.current = null;
+      }, 5000);
+    },
+    [session.regions, session.countries]
+  );
+
   const openLeaderChatWith = useCallback(
     (countryCode?: string, tab: "direct" | "councils" = "direct") => {
       if (countryCode) setLeaderChatTarget(countryCode);
@@ -1041,6 +1079,7 @@ export function GameWorkspace({
           flashedRegionIds={flashedRegionIds}
           flashedMarkerIds={flashedMarkerIds}
           focusMarkerCoord={focusMarkerCoord}
+          focusCountryRequest={focusCountryRequest}
           onSelectRegion={handleSelectRegion}
         />
 
@@ -1060,15 +1099,17 @@ export function GameWorkspace({
                   ? playerRisks[activeCountry.code] ?? null
                   : null
               }
-              onFocusPlayerCountry={() =>
-                setInspectedCountryCode(session.playerCountryCode)
-              }
+              onFocusPlayerCountry={() => {
+                if (session.playerCountryCode) {
+                  handleFindCountry(session.playerCountryCode);
+                }
+              }}
               onQuickDiplomacy={(targetCode) => {
                 setQuickDiploTarget(targetCode);
                 setShowOrderConsole(true);
               }}
               onOpenLeaderChat={(targetCode) => openLeaderChatWith(targetCode)}
-              onInspectCountry={(code) => setInspectedCountryCode(code)}
+              onInspectCountry={(code) => handleFindCountry(code)}
               onFocusMarker={(mk) =>
                 setFocusMarkerCoord({
                   lng: mk.lng,
@@ -1362,7 +1403,7 @@ export function GameWorkspace({
         {playerCountry && (
           <button
             type="button"
-            onClick={() => setInspectedCountryCode(playerCountry.code)}
+            onClick={() => handleFindCountry(playerCountry.code)}
             className="absolute bottom-4 right-14 z-20 hidden items-center gap-2 rounded-xl border border-border/90 bg-[#0b111c]/90 px-3 py-1.5 text-xs shadow-xl backdrop-blur-md hover:border-primary sm:flex cursor-pointer"
             title={isTr ? "Kendi ülkene odaklan" : "Focus your nation"}
           >
@@ -1377,8 +1418,17 @@ export function GameWorkspace({
           </button>
         )}
 
-        {/* Top-Center Live War Ticker & Notification Stack */}
+        {/* Top-Center Country Finder, Live War Ticker & Notification Stack */}
         <div className="pointer-events-none absolute left-1/2 top-3 z-30 flex -translate-x-1/2 flex-col items-center gap-2">
+          {session.playerCountryCode && (
+            <CountryFinder
+              countries={session.countries}
+              regions={session.regions}
+              playerCountryCode={session.playerCountryCode}
+              activeHighlightCode={highlightedCountryCode}
+              onSelectCountry={handleFindCountry}
+            />
+          )}
           {(mapMode === "war" || activeWarOps.length > 0) && session.playerCountryCode && (
             <div className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-full border border-rose-500/50 bg-[#090d16]/95 px-3.5 py-1.5 text-xs shadow-2xl backdrop-blur-md">
               <span className="flex items-center gap-1.5 font-semibold text-rose-300">
